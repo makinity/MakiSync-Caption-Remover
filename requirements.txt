@@ -1,0 +1,13 @@
+numpy>=1.23
+opencv-python>=4.7
+Pillow>=9.0
+tqdm>=4.65
+PyYAML>=6.0
+# LaMa inpainting backend (simple-lama-inpainting wraps the official model)
+simple-lama-inpainting>=0.1.2
+torch>=2.0
+torchvision>=0.15
+# Web UI for end users
+gradio>=4.0
+# Bundled ffmpeg/ffprobe binaries — avoids requiring `brew install ffmpeg`
+static-ffmpeg>=2.5
