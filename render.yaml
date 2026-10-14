@@ -2,7 +2,7 @@ services:
   - type: web
     name: caption-remover
     runtime: docker
-    plan: starter
+    plan: free
     region: oregon
     envVars:
       - key: PYTHONUNBUFFERED
