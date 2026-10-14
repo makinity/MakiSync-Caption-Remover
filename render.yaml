@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: caption-remover
+    runtime: docker
+    plan: starter
+    region: oregon
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: '1'
+      - key: GRADIO_SERVER_NAME
+        value: '0.0.0.0'

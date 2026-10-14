@@ -1,4 +1,4 @@
-# Hard Subtitle Remover (No-OCR, Color-Mask + AI Inpainting)
+# Caption Remover (CapCut Trimmer, Interactive ROI & AI Inpainting)
 
 A small, self-contained Python project that removes burned-in (hard)
 subtitles from a local video. Detection is **purely based on a fixed

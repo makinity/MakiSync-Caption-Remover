@@ -1950,7 +1950,7 @@ def build_ui() -> Tuple[gr.Blocks, gr.Theme, str]:
     icon_cpu = "⚙️"
     icon_output = "🎬"
 
-    with gr.Blocks(title="Video Subtitle Remover Studio") as demo:
+    with gr.Blocks(title="Caption Remover Studio") as demo:
         # Header
         with gr.Row(elem_classes=["hero-header"]):
             with gr.Column():
@@ -2165,12 +2165,12 @@ def main() -> None:
     print(f"[web] ffmpeg = {FFMPEG_BIN}")
     print(f"[web] ffprobe = {FFPROBE_BIN}")
     demo, theme, css = build_ui()
-    port = _find_available_port(7860, 50)
+    port = int(os.environ.get('PORT', 0)) or _find_available_port(7860, 50)
     url = f"http://127.0.0.1:{port}"
     print(f"[web] url = {url}")
     threading.Thread(target=_wait_and_open_browser, args=(url,), daemon=True).start()
     demo.queue(max_size=4).launch(
-        server_name="127.0.0.1",
+        server_name=os.environ.get('GRADIO_SERVER_NAME', '0.0.0.0' if ('PORT' in os.environ or 'RENDER' in os.environ) else '127.0.0.1'),
         server_port=port,
         inbrowser=False,
         share=False,
