@@ -107,24 +107,31 @@ def extract_audio(
     duration: Optional[float] = None,
     start_time: Optional[float] = None,
 ) -> bool:
-    """Extract audio losslessly to AAC (with fallback re-encode). Returns False if source has no audio."""
+    """Extract audio with exact PTS sample alignment. Returns False if source has no audio."""
     which_or_raise(ffmpeg_bin)
     ensure_dir(Path(out_audio_path).parent)
 
     cmd = [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error"]
     if start_time is not None and start_time > 0:
-        cmd += ["-ss", f"{start_time:.3f}"]
+        cmd += ["-ss", f"{start_time:.4f}"]
     if duration is not None and duration > 0:
-        cmd += ["-t", f"{duration:.3f}"]
-    cmd += ["-i", video_path, "-vn", "-acodec", "copy", out_audio_path]
+        cmd += ["-t", f"{duration:.4f}"]
+    cmd += [
+        "-i", video_path,
+        "-vn",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-af", "aresample=async=1:first_pts=0",
+        out_audio_path,
+    ]
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if proc.returncode != 0:
-        # Fallback to re-encoding audio with AAC for accurate cutting and universal format compatibility
+        # Fallback without audio filter if aresample fails
         cmd_fallback = [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error"]
         if start_time is not None and start_time > 0:
-            cmd_fallback += ["-ss", f"{start_time:.3f}"]
+            cmd_fallback += ["-ss", f"{start_time:.4f}"]
         if duration is not None and duration > 0:
-            cmd_fallback += ["-t", f"{duration:.3f}"]
+            cmd_fallback += ["-t", f"{duration:.4f}"]
         cmd_fallback += ["-i", video_path, "-vn", "-c:a", "aac", "-b:a", "192k", out_audio_path]
         proc_fallback = subprocess.run(cmd_fallback, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if proc_fallback.returncode != 0:
@@ -224,9 +231,11 @@ def mux_audio(
         ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
         "-i", video_no_audio,
         "-i", audio_path,
-        "-c", "copy",
+        "-c:v", "copy",
+        "-c:a", "copy",
         "-map", "0:v:0",
         "-map", "1:a:0",
+        "-avoid_negative_ts", "make_zero",
         "-movflags", "+faststart",
         "-shortest",
         out_path,

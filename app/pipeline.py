@@ -163,12 +163,15 @@ def run_pipeline(cfg: AppConfig) -> str:
 
     # 4. Audio
     log.info("Extracting audio...")
+    exact_audio_start = (start_frame / info.fps) if start_frame > 0 else None
+    exact_audio_duration = (len(frames) / info.fps) if duration_limit is not None else None
+
     has_audio = extract_audio(
         cfg.input_path,
         str(audio_path),
         cfg.ffmpeg_bin,
-        duration=duration_limit,
-        start_time=start_time if start_time > 0 else None,
+        duration=exact_audio_duration,
+        start_time=exact_audio_start,
     )
 
     # 5. Per-frame masks
