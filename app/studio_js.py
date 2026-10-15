@@ -138,17 +138,12 @@ STUDIO_JS = """
         const wrap = document.getElementById('repaired_path_output');
         if (wrap) {
             const el = wrap.querySelector('textarea, input');
-            if (el && el.value && el.value.trim() !== '') {
-                return el.value.trim();
+            if (el && el.value) {
+                const val = el.value.trim();
+                if (val.length > 4 && (val.endsWith('.mp4') || val.endsWith('.m4v') || val.includes('repaired_') || val.includes('/file='))) {
+                    return val;
+                }
             }
-            if (wrap.innerText && wrap.innerText.trim().length > 3) {
-                return wrap.innerText.trim();
-            }
-        }
-        const repVideo = findRepairedVideo();
-        if (repVideo) {
-            const src = getVideoSource(repVideo);
-            if (src && src.trim() !== '') return src.trim();
         }
         return '';
     }
@@ -1255,6 +1250,7 @@ STUDIO_JS = """
             const repVideo = findRepairedVideo();
             studio.lastRepVideoSrc = getVideoSource(repVideo);
             studio.processingStartTime = Date.now();
+            studio.initialOutput = getDirectRepairedPath();
 
             const pOut = document.querySelector('#repaired_path_output textarea, #repaired_path_output input');
             if (pOut) pOut.value = '';
@@ -1296,6 +1292,7 @@ STUDIO_JS = """
             if (overlay) {
                 overlay.style.display = 'flex';
                 overlay.style.opacity = '1';
+                overlay.style.pointerEvents = 'auto';
             }
             if (fillBar) fillBar.style.width = '4%';
             if (pctText) pctText.innerText = '4%';
@@ -1316,15 +1313,23 @@ STUDIO_JS = """
                 const elapsedSec = elapsedMs / 1000;
                 const elapsedStr = formatMinuteSecond(elapsedSec);
 
-                // Safety polling: automatically complete if output path has arrived
-                if (elapsedSec > 2) {
+                // Polling safety check: only after at least 5 seconds have elapsed,
+                // check if a NEW valid output path has appeared that differs from initial
+                if (elapsedSec > 5) {
                     const directP = getDirectRepairedPath();
-                    if (directP && directP.length > 3 && directP !== studio.lastFinishedPath) {
-                        console.log('[studio] Polling loop detected finished output:', directP);
-                        studio.lastFinishedPath = directP;
+                    if (directP && directP !== studio.initialOutput) {
+                        console.log('[studio] Fallback polling detected completed output:', directP);
                         completeProcessingProgress(directP);
                         return;
                     }
+                }
+
+                // Check for real Gradio error toast
+                const errToast = document.querySelector('.toast.error, div.toast.error');
+                if (errToast && errToast.innerText && errToast.innerText.trim().length > 0) {
+                    console.error('[studio] Gradio error toast detected:', errToast.innerText);
+                    cancelProcessingProgress();
+                    return;
                 }
 
                 // Asymptotic curve approaching 95%
@@ -1535,7 +1540,8 @@ STUDIO_JS = """
                 e.stopPropagation();
 
                 const videoEl = findSourceVideo();
-                if (!videoEl || !videoEl.src || videoEl.src === '') {
+                const videoSrc = getVideoSource(videoEl);
+                if (!videoEl || !videoSrc || videoSrc === '') {
                     alert('Please upload or drag a video into the monitor first!');
                     return;
                 }
@@ -1606,39 +1612,6 @@ STUDIO_JS = """
     function setupMonitorTabs() {
         const tabOrig = document.getElementById('tab_view_original');
         const tabClean = document.getElementById('tab_view_result');
-        const repVideo = findRepairedVideo();
-        const ctaBtn = document.getElementById('btn_studio_remove_captions');
-
-        if (studio.isProcessing) {
-            const currentRepSrc = getVideoSource(repVideo);
-            const directPath = getDirectRepairedPath();
-            const elapsedSinceStart = (Date.now() - (studio.processingStartTime || 0)) / 1000;
-
-            const hasDirectPath = Boolean(directPath && directPath !== '');
-            const hasNewVideoSrc = Boolean(currentRepSrc && currentRepSrc !== '' && currentRepSrc !== studio.lastRepVideoSrc);
-            const hasLoadedVideo = Boolean(repVideo && (repVideo.duration > 0 || repVideo.readyState >= 1) && repVideo !== findSourceVideo());
-
-            // Check if Gradio's run button has finished execution (leaves loading/disabled state after starting)
-            const gradioRun = document.getElementById('btn_run_pipeline');
-            const gradioNotBusy = Boolean(
-                gradioRun &&
-                elapsedSinceStart > 3 &&
-                !gradioRun.classList.contains('loading') &&
-                !gradioRun.hasAttribute('disabled') &&
-                !document.querySelector('#gradio_backend_bridge .loading')
-            );
-
-            if (hasDirectPath || hasNewVideoSrc || (hasLoadedVideo && currentRepSrc) || (gradioNotBusy && elapsedSinceStart > 4)) {
-                studio.lastRepVideoSrc = currentRepSrc;
-                completeProcessingProgress(directPath);
-            }
-        }
-
-        // Check if an error toast was displayed to restore button state
-        const errorToast = document.querySelector('.toast-wrap, .toast.error, div[class*="toast"]');
-        if (studio.isProcessing && errorToast) {
-            cancelProcessingProgress();
-        }
 
         if (tabOrig && !tabOrig.__hasTabInit) {
             tabOrig.__hasTabInit = true;
