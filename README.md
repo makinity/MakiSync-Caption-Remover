@@ -1,3 +1,14 @@
+---
+title: Caption Remover Studio
+emoji: 🎬
+colorFrom: indigo
+colorTo: purple
+sdk: gradio
+sdk_version: 5.6.0
+app_file: app.py
+pinned: false
+---
+
 # Caption Remover (CapCut Trimmer, Interactive ROI & AI Inpainting)
 
 A small, self-contained Python project that removes burned-in (hard)
