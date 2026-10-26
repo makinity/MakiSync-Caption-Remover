@@ -45,6 +45,25 @@ STUDIO_JS = """
         return mm + ':' + ss + '.' + ms;
     }
 
+    function resolveMediaUrl(p) {
+        if (!p || typeof p !== 'string') return '';
+        p = p.trim();
+        if (!p) return '';
+        if (p.startsWith('blob:') || p.startsWith('http://') || p.startsWith('https://')) {
+            return p;
+        }
+        if (p.startsWith('/gradio_api/file=')) {
+            return p;
+        }
+        if (p.startsWith('/file=')) {
+            return '/gradio_api' + p;
+        }
+        const norm = p.split(String.fromCharCode(92)).join('/');
+        if (norm.startsWith('/gradio_api/file=')) return norm;
+        if (norm.startsWith('/file=')) return '/gradio_api' + norm;
+        return '/gradio_api/file=' + encodeURI(norm);
+    }
+
     // -------------------------------------------------------------
     // State Store
     // -------------------------------------------------------------
@@ -63,13 +82,14 @@ STUDIO_JS = """
         // Active style & mode (Anti-blur smooth removal defaults)
         activeStyle: 'white_stroke',
         activeMode: 'quality',
-        maskDilation: 2,
-        lamaExtra: 1,
+        maskDilation: 3,
+        lamaExtra: 2,
         temporalWindow: 12,
         selectedPreset: 'bottom',
         detectedRatio: '16:9',
         activeMonitorTab: 'original',
         lastRepVideoSrc: '',
+        lastFinishedPath: '',
         isProcessing: false,
     };
 
@@ -79,16 +99,18 @@ STUDIO_JS = """
 
     function findSourceVideo() {
         const sourceWrap = document.getElementById('source_video_player');
-        if (sourceWrap) {
-            const v = sourceWrap.querySelector('video');
-            if (v) return v;
+        if (!sourceWrap) return null;
+        const videos = sourceWrap.querySelectorAll('video');
+        for (const v of videos) {
+            if (v.id === 'studio_clean_video_player' || v.id === 'dock_clean_video_player' || (v.id && v.id.startsWith('compare_vid'))) {
+                continue;
+            }
+            const s = getVideoSource(v);
+            if (s && s.trim() !== '') {
+                return v;
+            }
         }
-        const mount = document.getElementById('video_player_mount');
-        if (mount) {
-            const v = mount.querySelector('video');
-            if (v) return v;
-        }
-        return document.querySelector('video');
+        return null;
     }
 
     function getVideoSource(v) {
@@ -140,12 +162,12 @@ STUDIO_JS = """
             const el = wrap.querySelector('textarea, input');
             if (el && el.value) {
                 const val = el.value.trim();
-                if (val.length > 4 && (val.endsWith('.mp4') || val.endsWith('.m4v') || val.includes('repaired_') || val.includes('/file='))) {
+                if (val.length > 4 && (val.endsWith('.mp4') || val.endsWith('.m4v') || val.includes('repaired_') || val.includes('/file=') || val.includes('/gradio_api/file='))) {
                     return val;
                 }
             }
         }
-        return '';
+        return studio.lastFinishedPath || '';
     }
 
     function getActiveVideo() {
@@ -885,16 +907,16 @@ STUDIO_JS = """
 
         if (type === 'bottom') {
             if (isLandscape) {
-                // 16:9 Landscape: center bottom subtitle area
+                // 16:9 Landscape: center bottom subtitle area (covers 72% to 96%)
                 lx = Math.round(natW * 0.10);
                 rx = Math.round(natW * 0.90);
-                ty = Math.round(natH * 0.80);
+                ty = Math.round(natH * 0.72);
                 by = Math.round(natH * 0.96);
             } else {
-                // 9:16 Portrait: vertical video subtitle band
+                // 9:16 Portrait: vertical video subtitle band (covers 68% to 94%)
                 lx = Math.round(natW * 0.05);
                 rx = Math.round(natW * 0.95);
-                ty = Math.round(natH * 0.78);
+                ty = Math.round(natH * 0.68);
                 by = Math.round(natH * 0.94);
             }
             label = 'Bottom subtitle';
@@ -1244,6 +1266,7 @@ STUDIO_JS = """
         function startProcessingProgress() {
             if (procProgressTimer) clearInterval(procProgressTimer);
             studio.isProcessing = true;
+            studio.isCheckingStatus = false;
             window.__STUDIO = window.__STUDIO || {};
             window.__STUDIO.isProcessing = true;
 
@@ -1251,6 +1274,16 @@ STUDIO_JS = """
             studio.lastRepVideoSrc = getVideoSource(repVideo);
             studio.processingStartTime = Date.now();
             studio.initialOutput = getDirectRepairedPath();
+            studio.initialServerFile = studio.serverResultFile || '';
+
+            fetch('/status_result')
+                .then(r => r.json())
+                .then(d => {
+                    if (d && d.has_result && d.path) {
+                        studio.initialServerFile = d.path;
+                    }
+                })
+                .catch(() => {});
 
             const pOut = document.querySelector('#repaired_path_output textarea, #repaired_path_output input');
             if (pOut) pOut.value = '';
@@ -1286,7 +1319,7 @@ STUDIO_JS = """
             }
 
             const isFast = (studio.activeMode === 'fast');
-            procEstTotalSec = isFast ? Math.max(8, Math.round(clipLen * 1.5)) : Math.max(30, Math.round(clipLen * 11.5));
+            procEstTotalSec = isFast ? Math.max(5, Math.round(clipLen * 1.2)) : Math.max(8, Math.round(clipLen * 2.5));
             procStartTime = Date.now();
 
             if (overlay) {
@@ -1313,12 +1346,28 @@ STUDIO_JS = """
                 const elapsedSec = elapsedMs / 1000;
                 const elapsedStr = formatMinuteSecond(elapsedSec);
 
-                // Polling safety check: only after at least 5 seconds have elapsed,
-                // check if a NEW valid output path has appeared that differs from initial
+                // Live continuous server polling (every 1.2s after 2s of processing)
+                if (elapsedSec > 2 && !studio.isCheckingStatus) {
+                    studio.isCheckingStatus = true;
+                    fetch('/status_result')
+                        .then(r => r.json())
+                        .then(data => {
+                            studio.isCheckingStatus = false;
+                            if (data && data.has_result && data.path && data.path !== studio.initialServerFile) {
+                                console.log('[studio] Server reported completed output:', data);
+                                completeProcessingProgress(data.path, data);
+                            }
+                        })
+                        .catch(() => {
+                            studio.isCheckingStatus = false;
+                        });
+                }
+
+                // Fallback polling for DOM output textbox change
                 if (elapsedSec > 5) {
                     const directP = getDirectRepairedPath();
                     if (directP && directP !== studio.initialOutput) {
-                        console.log('[studio] Fallback polling detected completed output:', directP);
+                        console.log('[studio] DOM detected completed output:', directP);
                         completeProcessingProgress(directP);
                         return;
                     }
@@ -1387,7 +1436,7 @@ STUDIO_JS = """
             }, 200);
         }
 
-        function completeProcessingProgress(cleanPath) {
+        function completeProcessingProgress(cleanPath, metaData) {
             studio.isProcessing = false;
             window.__STUDIO = window.__STUDIO || {};
             window.__STUDIO.isProcessing = false;
@@ -1397,7 +1446,9 @@ STUDIO_JS = """
             }
 
             let finalPath = '';
-            if (typeof cleanPath === 'string' && cleanPath.trim() !== '') {
+            if (metaData && typeof metaData.path === 'string' && metaData.path.trim() !== '') {
+                finalPath = metaData.path.trim();
+            } else if (typeof cleanPath === 'string' && cleanPath.trim() !== '') {
                 finalPath = cleanPath.trim();
             } else if (cleanPath && typeof cleanPath === 'object') {
                 if (cleanPath.video && typeof cleanPath.video.path === 'string') {
@@ -1418,23 +1469,73 @@ STUDIO_JS = """
 
             if (finalPath) {
                 studio.lastFinishedPath = finalPath;
-                let cleanUrl = '';
-                if (finalPath.startsWith('http://') || finalPath.startsWith('https://') || finalPath.startsWith('/file=') || finalPath.startsWith('blob:')) {
-                    cleanUrl = finalPath;
-                } else {
-                    const normPath = finalPath.split(String.fromCharCode(92)).join('/');
-                    cleanUrl = '/file=' + encodeURI(normPath);
+                studio.serverResultFile = finalPath;
+            }
+
+            const ts = Date.now();
+            const previewUrl = `/preview_result?t=${ts}`;
+            const downloadUrl = `/download_result?t=${ts}`;
+            console.log('[studio] Inpainting complete! Final path:', finalPath, 'Preview:', previewUrl, 'Download:', downloadUrl);
+
+            // 1. In-Monitor Clean Player with native controls
+            const cleanPlayer = document.getElementById('studio_clean_video_player');
+            if (cleanPlayer) {
+                cleanPlayer.src = previewUrl;
+                cleanPlayer.controls = true;
+                cleanPlayer.load();
+            }
+
+            // 2. Docked dedicated clean player with native controls
+            const dockPlayer = document.getElementById('dock_clean_video_player');
+            if (dockPlayer) {
+                dockPlayer.src = previewUrl;
+                dockPlayer.controls = true;
+                dockPlayer.load();
+            }
+
+            // 3. Comparison modal clean player
+            const cmpClean = document.getElementById('compare_vid_clean');
+            if (cmpClean) {
+                cmpClean.src = previewUrl;
+                cmpClean.load();
+            }
+
+            // 4. Reveal dedicated result dock right below timeline
+            const resultDock = document.getElementById('studio_result_dock');
+            if (resultDock) {
+                resultDock.style.display = 'block';
+                const fnBadge = document.getElementById('result_dock_filename');
+                if (fnBadge) {
+                    let fname = (metaData && metaData.filename) || '';
+                    if (!fname && finalPath && typeof finalPath === 'string') {
+                        const parts = finalPath.split(/[\\\\/]/);
+                        fname = parts[parts.length - 1];
+                    }
+                    if (!fname) fname = 'clean_video.mp4';
+                    fnBadge.innerText = `File: ${fname} • Inpainted with AI • Ready to preview & download`;
                 }
-                const cleanPlayer = document.getElementById('studio_clean_video_player');
-                if (cleanPlayer) {
-                    cleanPlayer.src = cleanUrl;
-                    cleanPlayer.load();
-                }
-                const cmpAfter = document.getElementById('compare_video_after');
-                if (cmpAfter) {
-                    cmpAfter.src = cleanUrl;
-                    cmpAfter.load();
-                }
+            }
+
+            // 5. Reveal download buttons
+            const quickDl = document.getElementById('btn_quick_download_top');
+            if (quickDl) {
+                quickDl.style.display = 'inline-flex';
+                quickDl.href = downloadUrl;
+            }
+            const dockDl = document.getElementById('btn_dock_download_video');
+            if (dockDl) {
+                dockDl.href = downloadUrl;
+            }
+            const navExport = document.getElementById('btn_nav_export');
+            if (navExport) {
+                navExport.style.display = 'inline-flex';
+                navExport.href = downloadUrl;
+            }
+
+            // 6. Reveal clean result monitor tab
+            const tabClean = document.getElementById('tab_view_result');
+            if (tabClean) {
+                tabClean.style.display = 'flex';
             }
 
             const overlay = document.getElementById('studio_processing_overlay');
@@ -1493,8 +1594,7 @@ STUDIO_JS = """
                     }
                 }
 
-                // Switch to clean result tab and play video
-                const tabClean = document.getElementById('tab_view_result');
+                // Switch to clean result tab in monitor
                 if (tabClean) {
                     tabClean.style.display = 'flex';
                     tabClean.click();
@@ -1623,13 +1723,37 @@ STUDIO_JS = """
                 const srcPlayer = document.getElementById('source_video_player');
                 const cleanPlayer = document.getElementById('studio_clean_video_player');
                 const repPlayer = document.getElementById('repaired_video_player');
-                const roiOverlay = document.getElementById('roi_canvas_overlay');
+                const roiOverlay = document.getElementById('roi_interactive_overlay') || document.getElementById('roi_canvas_overlay');
                 const roiPill = document.getElementById('roi_floating_pill');
-                if (cleanPlayer) cleanPlayer.style.display = 'none';
-                if (repPlayer) repPlayer.style.display = 'none';
-                if (srcPlayer) srcPlayer.style.display = 'block';
+
+                if (cleanPlayer) {
+                    cleanPlayer.pause();
+                    cleanPlayer.classList.remove('active');
+                    cleanPlayer.classList.add('hidden');
+                    cleanPlayer.style.setProperty('display', 'none', 'important');
+                }
+                if (repPlayer) {
+                    const repVid = repPlayer.querySelector('video');
+                    if (repVid) repVid.pause();
+                    repPlayer.style.display = 'none';
+                }
+                if (srcPlayer) {
+                    srcPlayer.classList.remove('hidden');
+                    srcPlayer.style.removeProperty('display');
+                }
                 if (roiOverlay) roiOverlay.style.display = 'block';
                 if (roiPill) roiPill.style.display = 'flex';
+
+                const srcVid = findSourceVideo();
+                if (srcVid && cleanPlayer && isFinite(cleanPlayer.currentTime)) {
+                    const isTrim = Boolean(window.__TRIM_DATA && window.__TRIM_DATA.enabled && window.__TRIM_DATA.end > window.__TRIM_DATA.start);
+                    const trimStart = isTrim ? Number(window.__TRIM_DATA.start || 0) : 0;
+                    const targetTime = isTrim ? (cleanPlayer.currentTime + trimStart) : cleanPlayer.currentTime;
+                    try {
+                        if (isFinite(targetTime)) srcVid.currentTime = targetTime;
+                    } catch (e) {}
+                }
+                updateTransportUI();
             });
         }
 
@@ -1643,29 +1767,64 @@ STUDIO_JS = """
                 const srcPlayer = document.getElementById('source_video_player');
                 const cleanPlayer = document.getElementById('studio_clean_video_player');
                 const repPlayer = document.getElementById('repaired_video_player');
-                const roiOverlay = document.getElementById('roi_canvas_overlay');
+                const roiOverlay = document.getElementById('roi_interactive_overlay') || document.getElementById('roi_canvas_overlay');
                 const roiPill = document.getElementById('roi_floating_pill');
-                if (srcPlayer) srcPlayer.style.display = 'none';
+
+                // Hide source player cleanly
+                if (srcPlayer) {
+                    srcPlayer.classList.add('hidden');
+                    srcPlayer.style.setProperty('display', 'none', 'important');
+                }
+
+                // If cleanPlayer doesn't have src yet, use direct /preview_result endpoint
+                if (cleanPlayer && (!cleanPlayer.src || cleanPlayer.src === '')) {
+                    cleanPlayer.src = '/preview_result?t=' + Date.now();
+                    cleanPlayer.controls = true;
+                    cleanPlayer.load();
+                }
 
                 const srcVid = findSourceVideo();
-                const curTime = (srcVid ? srcVid.currentTime : 0);
+                const isTrim = Boolean(window.__TRIM_DATA && window.__TRIM_DATA.enabled && window.__TRIM_DATA.end > window.__TRIM_DATA.start);
+                const trimStart = isTrim ? Number(window.__TRIM_DATA.start || 0) : 0;
+                let curTime = srcVid ? srcVid.currentTime : 0;
+                if (isTrim) {
+                    curTime = Math.max(0, curTime - trimStart);
+                }
 
                 if (cleanPlayer && cleanPlayer.src && cleanPlayer.src !== '') {
-                    cleanPlayer.style.display = 'block';
+                    cleanPlayer.classList.remove('hidden');
+                    cleanPlayer.classList.add('active');
+                    cleanPlayer.controls = true;
+                    cleanPlayer.style.setProperty('display', 'block', 'important');
                     if (repPlayer) repPlayer.style.display = 'none';
-                    cleanPlayer.currentTime = curTime;
-                    cleanPlayer.play().catch(() => {});
+
+                    const seekAndPlay = () => {
+                        try {
+                            if (isFinite(curTime)) cleanPlayer.currentTime = curTime;
+                        } catch (e) {}
+                        cleanPlayer.play().catch(() => {});
+                        updateTransportUI();
+                    };
+
+                    if (cleanPlayer.readyState >= 1) {
+                        seekAndPlay();
+                    } else {
+                        cleanPlayer.addEventListener('loadedmetadata', seekAndPlay, { once: true });
+                    }
                 } else if (repPlayer) {
                     repPlayer.style.display = 'block';
                     const repVid = repPlayer.querySelector('video') || findRepairedVideo();
                     if (repVid) {
                         repVid.style.display = 'block';
-                        repVid.currentTime = curTime;
+                        try {
+                            if (isFinite(curTime)) repVid.currentTime = curTime;
+                        } catch (e) {}
                         repVid.play().catch(() => {});
                     }
                 }
                 if (roiOverlay) roiOverlay.style.display = 'none';
                 if (roiPill) roiPill.style.display = 'none';
+                updateTransportUI();
             });
         }
     }
@@ -1691,6 +1850,12 @@ STUDIO_JS = """
 
     function closeAllModals() {
         document.querySelectorAll('.studio-modal-backdrop').forEach(m => m.style.display = 'none');
+        const vidOrig = document.getElementById('compare_vid_original');
+        const vidClean = document.getElementById('compare_vid_clean');
+        if (vidOrig) vidOrig.pause();
+        if (vidClean) vidClean.pause();
+        const lbl = document.getElementById('compare_play_label');
+        if (lbl) lbl.innerText = 'Play comparison in sync';
     }
 
     function captureVideoFrameToDataUrl(videoEl) {
@@ -1713,16 +1878,74 @@ STUDIO_JS = """
 
         const srcVideo = findSourceVideo();
         const cleanPlayer = document.getElementById('studio_clean_video_player');
-        const repVideo = (cleanPlayer && cleanPlayer.src && cleanPlayer.src !== '') ? cleanPlayer : findRepairedVideo();
+        const dockPlayer = document.getElementById('dock_clean_video_player');
+        const cleanPath = studio.lastFinishedPath || getDirectRepairedPath();
+        let cleanUrl = (cleanPlayer && cleanPlayer.src && cleanPlayer.src !== '') ? cleanPlayer.src :
+                       (dockPlayer && dockPlayer.src && dockPlayer.src !== '') ? dockPlayer.src :
+                       (cleanPath ? resolveMediaUrl(cleanPath) : '/preview_result');
 
+        const vidOrig = document.getElementById('compare_vid_original');
+        const vidClean = document.getElementById('compare_vid_clean');
         const imgOrig = document.getElementById('compare_img_original');
         const imgClean = document.getElementById('compare_img_clean');
 
-        const srcData = captureVideoFrameToDataUrl(srcVideo);
-        const repData = captureVideoFrameToDataUrl(repVideo);
+        const activeV = getActiveVideo();
+        const curTime = activeV ? activeV.currentTime : (srcVideo ? srcVideo.currentTime : 0);
 
-        if (imgOrig) imgOrig.src = srcData || '';
-        if (imgClean) imgClean.src = repData || srcData || '';
+        const isTrim = Boolean(window.__TRIM_DATA && window.__TRIM_DATA.enabled && window.__TRIM_DATA.end > window.__TRIM_DATA.start);
+        const trimStart = isTrim ? Number(window.__TRIM_DATA.start || 0) : 0;
+
+        let origTime = curTime;
+        let cleanTime = curTime;
+
+        if (studio.activeMonitorTab === 'result') {
+            cleanTime = curTime;
+            origTime = isTrim ? (curTime + trimStart) : curTime;
+        } else {
+            origTime = curTime;
+            cleanTime = isTrim ? Math.max(0, curTime - trimStart) : curTime;
+        }
+
+        if (srcVideo) {
+            const srcUrl = getVideoSource(srcVideo);
+            if (vidOrig && srcUrl) {
+                if (vidOrig.src !== srcUrl) {
+                    vidOrig.src = srcUrl;
+                    vidOrig.load();
+                }
+                const seekOrig = () => {
+                    try { vidOrig.currentTime = origTime; } catch (_) {}
+                };
+                if (vidOrig.readyState >= 1) seekOrig();
+                else vidOrig.addEventListener('loadedmetadata', seekOrig, { once: true });
+                vidOrig.style.display = 'block';
+            }
+        }
+
+        if (vidClean && cleanUrl) {
+            if (vidClean.src !== cleanUrl) {
+                vidClean.src = cleanUrl;
+                vidClean.load();
+            }
+            const seekClean = () => {
+                try { vidClean.currentTime = cleanTime; } catch (_) {}
+            };
+            if (vidClean.readyState >= 1) seekClean();
+            else vidClean.addEventListener('loadedmetadata', seekClean, { once: true });
+            vidClean.style.display = 'block';
+        }
+
+        const srcData = captureVideoFrameToDataUrl(srcVideo);
+        const repData = captureVideoFrameToDataUrl(cleanPlayer);
+        if (imgOrig && srcData) {
+            imgOrig.src = srcData;
+        }
+        if (imgClean && repData) {
+            imgClean.src = repData;
+        }
+
+        const lbl = document.getElementById('compare_play_label');
+        if (lbl) lbl.innerText = 'Play comparison in sync';
 
         modal.style.display = 'flex';
         initSplitSlider();
@@ -1734,8 +1957,6 @@ STUDIO_JS = """
         const cleanLayer = document.getElementById('split_layer_clean');
         if (!viewport || !divider || !cleanLayer) return;
 
-        let isDraggingSplit = false;
-
         function setSplitPosition(pct) {
             pct = Math.max(0, Math.min(100, pct));
             divider.style.left = pct + '%';
@@ -1746,24 +1967,34 @@ STUDIO_JS = """
 
         if (!viewport.__hasSplitInit) {
             viewport.__hasSplitInit = true;
+            let isDraggingSplit = false;
+
+            const updateSplitFromPointer = (e) => {
+                const rect = viewport.getBoundingClientRect();
+                if (rect.width <= 0) return;
+                const relX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                setSplitPosition((relX / rect.width) * 100);
+            };
 
             viewport.addEventListener('pointerdown', (e) => {
                 isDraggingSplit = true;
-                const rect = viewport.getBoundingClientRect();
-                const relX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-                setSplitPosition((relX / rect.width) * 100);
+                try { viewport.setPointerCapture(e.pointerId); } catch (_) {}
+                updateSplitFromPointer(e);
             });
 
-            window.addEventListener('pointermove', (e) => {
+            viewport.addEventListener('pointermove', (e) => {
                 if (!isDraggingSplit) return;
-                const rect = viewport.getBoundingClientRect();
-                const relX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-                setSplitPosition((relX / rect.width) * 100);
+                updateSplitFromPointer(e);
             });
 
-            window.addEventListener('pointerup', () => {
-                isDraggingSplit = false;
-            });
+            const onPointerEnd = (e) => {
+                if (isDraggingSplit) {
+                    isDraggingSplit = false;
+                    try { viewport.releasePointerCapture(e.pointerId); } catch (_) {}
+                }
+            };
+            viewport.addEventListener('pointerup', onPointerEnd);
+            viewport.addEventListener('pointercancel', onPointerEnd);
         }
     }
 
@@ -1791,8 +2022,42 @@ STUDIO_JS = """
         const modalCompare = document.getElementById('modal_comparison_view');
         if (modalCompare && !modalCompare.__hasInit) {
             modalCompare.__hasInit = true;
-            document.getElementById('btn_close_compare_modal')?.addEventListener('click', () => modalCompare.style.display = 'none');
-            modalCompare.addEventListener('click', (e) => { if (e.target === modalCompare) modalCompare.style.display = 'none'; });
+            const closeCompare = () => {
+                modalCompare.style.display = 'none';
+                const vidOrig = document.getElementById('compare_vid_original');
+                const vidClean = document.getElementById('compare_vid_clean');
+                if (vidOrig) vidOrig.pause();
+                if (vidClean) vidClean.pause();
+                const lbl = document.getElementById('compare_play_label');
+                if (lbl) lbl.innerText = 'Play comparison in sync';
+            };
+            document.getElementById('btn_close_compare_modal')?.addEventListener('click', closeCompare);
+            modalCompare.addEventListener('click', (e) => { if (e.target === modalCompare) closeCompare(); });
+
+            const btnPlayToggle = document.getElementById('btn_compare_play_toggle');
+            if (btnPlayToggle) {
+                btnPlayToggle.addEventListener('click', () => {
+                    const vidOrig = document.getElementById('compare_vid_original');
+                    const vidClean = document.getElementById('compare_vid_clean');
+                    const lbl = document.getElementById('compare_play_label');
+                    if (!vidOrig || !vidClean) return;
+
+                    if (vidOrig.paused) {
+                        const isTrim = Boolean(window.__TRIM_DATA && window.__TRIM_DATA.enabled && window.__TRIM_DATA.end > window.__TRIM_DATA.start);
+                        const trimStart = isTrim ? Number(window.__TRIM_DATA.start || 0) : 0;
+                        try {
+                            vidClean.currentTime = isTrim ? Math.max(0, vidOrig.currentTime - trimStart) : vidOrig.currentTime;
+                        } catch (_) {}
+                        vidOrig.play().catch(() => {});
+                        vidClean.play().catch(() => {});
+                        if (lbl) lbl.innerText = 'Pause comparison';
+                    } else {
+                        vidOrig.pause();
+                        vidClean.pause();
+                        if (lbl) lbl.innerText = 'Play comparison in sync';
+                    }
+                });
+            }
         }
 
         // Modal 3: Shortcuts
@@ -1855,6 +2120,23 @@ STUDIO_JS = """
         });
     }
 
+    function attachResultDockListeners() {
+        const cmpBtn = document.getElementById('btn_dock_compare');
+        if (cmpBtn && !cmpBtn.__hasInit) {
+            cmpBtn.__hasInit = true;
+            cmpBtn.addEventListener('click', openCompareModal);
+        }
+
+        const navExport = document.getElementById('btn_nav_export');
+        if (navExport && !navExport.__hasInit) {
+            navExport.__hasInit = true;
+            navExport.addEventListener('click', (e) => {
+                e.preventDefault();
+                window.location.href = '/download_result';
+            });
+        }
+    }
+
     // -------------------------------------------------------------
     // Main Studio Lifecycle & Polling Loop
     // -------------------------------------------------------------
@@ -1862,9 +2144,11 @@ STUDIO_JS = """
         mountVideoIntoStudio();
 
         const v = findSourceVideo();
-        if (!v && studio.video) {
-            studio.video = null;
-            studio.duration = 0;
+        if (!v) {
+            if (studio.video) {
+                studio.video = null;
+                studio.duration = 0;
+            }
             const viewport = document.getElementById('studio_monitor_viewport');
             if (viewport) {
                 viewport.classList.remove('viewport-portrait');
@@ -1879,13 +2163,62 @@ STUDIO_JS = """
             const tabClean = document.getElementById('tab_view_result');
             if (tabClean) tabClean.style.display = 'none';
             const tabOrig = document.getElementById('tab_view_original');
-            if (tabOrig) tabOrig.classList.add('active');
+            if (tabOrig) {
+                tabOrig.classList.add('active');
+                if (tabClean) tabClean.classList.remove('active');
+            }
+            const quickDl = document.getElementById('btn_quick_download_top');
+            if (quickDl) quickDl.style.display = 'none';
+            const navExport = document.getElementById('btn_nav_export');
+            if (navExport) navExport.style.display = 'none';
+            const resultDock = document.getElementById('studio_result_dock');
+            if (resultDock) resultDock.style.display = 'none';
+
+            const track = document.getElementById('capcut_track_thumbnails');
+            if (track && track.innerHTML !== '') {
+                track.innerHTML = '';
+                track.__filmstripKey = null;
+            }
+            const ruler = document.getElementById('capcut_ruler');
+            if (ruler && ruler.innerHTML !== '') {
+                ruler.innerHTML = '';
+                studio.rulerBuiltFor = -1;
+            }
+            const timecodeEl = document.getElementById('transport_timecode');
+            if (timecodeEl && timecodeEl.innerText !== '00:00.0 / 00:00.0') {
+                timecodeEl.innerText = '00:00.0 / 00:00.0';
+            }
+            const seqInfo = document.getElementById('timeline_sequence_info');
+            if (seqInfo) seqInfo.innerText = 'Source sequence • 00:00.0';
+
+            const cleanPlayer = document.getElementById('studio_clean_video_player');
+            if (cleanPlayer && cleanPlayer.src && cleanPlayer.src !== '') {
+                cleanPlayer.pause();
+                cleanPlayer.removeAttribute('src');
+                cleanPlayer.load();
+                cleanPlayer.style.setProperty('display', 'none', 'important');
+                cleanPlayer.classList.remove('active');
+                cleanPlayer.classList.add('hidden');
+            }
+
+            const dockPlayer = document.getElementById('dock_clean_video_player');
+            if (dockPlayer && dockPlayer.src && dockPlayer.src !== '') {
+                dockPlayer.pause();
+                dockPlayer.removeAttribute('src');
+                dockPlayer.load();
+            }
         }
 
         const cleanPlayer = document.getElementById('studio_clean_video_player');
         if (cleanPlayer && !cleanPlayer.__hasTimeListener) {
             cleanPlayer.__hasTimeListener = true;
             cleanPlayer.addEventListener('timeupdate', () => {
+                if (studio.activeMonitorTab === 'result') {
+                    updateTransportUI();
+                }
+            });
+            cleanPlayer.addEventListener('loadedmetadata', () => {
+                detectAndApplyAspectRatio(cleanPlayer);
                 if (studio.activeMonitorTab === 'result') {
                     updateTransportUI();
                 }
@@ -1941,6 +2274,7 @@ STUDIO_JS = """
         attachPillListeners();
         attachInspectorListeners();
         attachAllModalListeners();
+        attachResultDockListeners();
         setupMonitorTabs();
         setupKeyboardShortcuts();
 

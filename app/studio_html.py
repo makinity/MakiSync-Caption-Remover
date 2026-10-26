@@ -18,10 +18,14 @@ STUDIO_HTML = """
             </div>
         </div>
         <div class="nav-right">
-            <div class="status-gpu-pill">
+            <div class="status-gpu-pill" id="studio_gpu_status_pill">
                 <span class="gpu-dot"></span>
-                <span>LOCAL GPU READY</span>
+                <span id="studio_gpu_status_text">RTX 2050 CUDA READY</span>
             </div>
+            <a href="/download_result" class="nav-export-btn" id="btn_nav_export" download="clean_video.mp4" style="display:none;" title="Download Clean Video (.mp4)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Export MP4</span>
+            </a>
             <button type="button" class="nav-ghost-btn" id="btn_nav_shortcuts">⌘ Shortcuts</button>
             <button type="button" class="nav-ghost-btn" id="btn_nav_docs">Docs</button>
             <button type="button" class="nav-icon-btn" id="btn_nav_settings" title="Settings">
@@ -60,6 +64,10 @@ STUDIO_HTML = """
                     <div class="monitor-meta-left">
                         <span class="preview-tag active" id="tab_view_original" title="View Source Video"><span class="green-indicator"></span>PREVIEW / ORIGINAL</span>
                         <span class="result-tag" id="tab_view_result" style="display:none;" title="View Clean Inpainted Output Video"><span class="purple-indicator"></span>✨ CLEAN RESULT</span>
+                        <a id="btn_quick_download_top" href="/download_result" class="monitor-download-chip" style="display:none;" download="clean_video.mp4" title="Download Clean Video (.mp4)">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            <span>Download MP4</span>
+                        </a>
                     </div>
                     <div class="monitor-meta-right">
                         <span class="ratio-badge" id="meta_aspect_badge">AUTO RATIO</span>
@@ -69,7 +77,7 @@ STUDIO_HTML = """
                 
                 <div class="monitor-viewport" id="studio_monitor_viewport">
                     <div id="video_player_mount">
-                        <video id="studio_clean_video_player" style="display: none; width: 100%; height: 100%; object-fit: contain; border-radius: 6px;" playsinline></video>
+                        <video id="studio_clean_video_player" class="hidden" controls playsinline style="display: none; width: 100%; height: 100%; object-fit: contain; border-radius: 6px; cursor: pointer; z-index: 25;" title="Clean Result Video Player"></video>
                     </div>
 
                     <!-- Interactive Floating Pill Bar over video -->
@@ -239,6 +247,32 @@ STUDIO_HTML = """
                     </div>
                 </div>
             </div>
+
+            <!-- Dedicated Output & Download Tray (Appears upon pipeline completion) -->
+            <div class="studio-result-dock" id="studio_result_dock" style="display: none;">
+                <div class="result-dock-header">
+                    <div class="result-dock-title-wrap">
+                        <span class="result-dock-sparkle">✨</span>
+                        <div>
+                            <h3 class="result-dock-title">Clean Output Video Ready</h3>
+                            <p class="result-dock-sub" id="result_dock_filename">Captions removed cleanly with AI</p>
+                        </div>
+                    </div>
+                    <div class="result-dock-actions">
+                        <a id="btn_dock_download_video" href="/download_result" class="result-btn-download" download="clean_video.mp4" title="Download Clean Video (.mp4)">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            <span>Download Clean Video (.mp4)</span>
+                        </a>
+                        <button type="button" class="result-btn-compare" id="btn_dock_compare">
+                            <span>✦ Compare Before / After</span>
+                        </button>
+                    </div>
+                </div>
+                <!-- Embedded Direct Clean Player -->
+                <div class="result-dock-player-wrap">
+                    <video id="dock_clean_video_player" controls playsinline preload="auto" style="width: 100%; max-height: 420px; border-radius: 8px; background: #000000; outline: none;"></video>
+                </div>
+            </div>
         </div>
 
         <!-- Inspector Dock (Right Column) -->
@@ -263,27 +297,33 @@ STUDIO_HTML = """
                     <div class="style-card active" data-style="white_stroke" id="card_style_white_stroke">
                         <span class="style-card-check">✓</span>
                         <div class="style-card-icon stroke-text-icon">Aa</div>
-                        <span class="style-card-label">White text + dark stroke</span>
+                        <span class="style-card-label">White text + outline / shadow</span>
                     </div>
-                    <!-- Card 2: Colored box banner -->
+                    <!-- Card 2: Pure white text -->
+                    <div class="style-card" data-style="white" id="card_style_white">
+                        <span class="style-card-check" style="display:none;">✓</span>
+                        <div class="style-card-icon pure-white-icon">Aa</div>
+                        <span class="style-card-label">Pure white text / logo</span>
+                    </div>
+                    <!-- Card 3: Dark text -->
+                    <div class="style-card" data-style="black" id="card_style_black">
+                        <span class="style-card-check" style="display:none;">✓</span>
+                        <div class="style-card-icon dark-text-icon">Aa</div>
+                        <span class="style-card-label">Dark text</span>
+                    </div>
+                    <!-- Card 4: Colored box banner -->
                     <div class="style-card" data-style="colored_box" id="card_style_colored_box">
                         <span class="style-card-check" style="display:none;">✓</span>
                         <div class="style-card-icon banner-box-icon"><span class="box-inner"></span></div>
                         <span class="style-card-label">Colored box banner</span>
                     </div>
-                    <!-- Card 3: Watermark / logo area -->
-                    <div class="style-card" data-style="full_box" id="card_style_full_box">
+                    <!-- Card 5: Watermark / logo area -->
+                    <div class="style-card card-full-span" data-style="full_box" id="card_style_full_box">
                         <span class="style-card-check" style="display:none;">✓</span>
                         <div class="style-card-icon shield-icon">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                         </div>
                         <span class="style-card-label">Watermark / logo area</span>
-                    </div>
-                    <!-- Card 4: Dark text -->
-                    <div class="style-card" data-style="black" id="card_style_black">
-                        <span class="style-card-check" style="display:none;">✓</span>
-                        <div class="style-card-icon dark-text-icon">Aa</div>
-                        <span class="style-card-label">Dark text</span>
                     </div>
                 </div>
             </div>
@@ -323,25 +363,25 @@ STUDIO_HTML = """
                 </div>
                 <p class="section-desc">Anti-blur defaults for smooth, artifact-free removal.</p>
                 <div class="tuning-slider-group">
-                    <!-- Slider 1: Mask Dilation (Keep 2-3 px) -->
+                    <!-- Slider 1: Mask Dilation (Keep 3-4 px) -->
                     <div class="tuning-row">
                         <div class="tuning-label-wrap">
                             <span class="tuning-label">Mask dilation</span>
-                            <span class="tuning-hint">Keep 2–3 px (crisp background)</span>
+                            <span class="tuning-hint">3–4 px (clean drop-shadow absorption)</span>
                         </div>
-                        <span class="tuning-val" id="val_mask_dilation">2 px</span>
+                        <span class="tuning-val" id="val_mask_dilation">3 px</span>
                     </div>
-                    <input type="range" min="1" max="6" value="2" step="1" class="studio-range" id="input_mask_dilation">
+                    <input type="range" min="1" max="6" value="3" step="1" class="studio-range" id="input_mask_dilation">
 
-                    <!-- Slider 2: LaMa Extra Padding (Keep 1-2 px) -->
+                    <!-- Slider 2: LaMa Extra Padding (Keep 2 px) -->
                     <div class="tuning-row" style="margin-top: 14px;">
                         <div class="tuning-label-wrap">
                             <span class="tuning-label">LaMa extra padding</span>
-                            <span class="tuning-hint">Keep 1–2 px (prevents smudge halo)</span>
+                            <span class="tuning-hint">Keep 2 px (smooth skin blending)</span>
                         </div>
-                        <span class="tuning-val" id="val_lama_extra">1 px</span>
+                        <span class="tuning-val" id="val_lama_extra">2 px</span>
                     </div>
-                    <input type="range" min="0" max="6" value="1" step="1" class="studio-range" id="input_lama_extra">
+                    <input type="range" min="0" max="6" value="2" step="1" class="studio-range" id="input_lama_extra">
 
                     <!-- Slider 3: Temporal Anti-Flicker (10-14 recommended) -->
                     <div class="tuning-row" style="margin-top: 14px;">
@@ -456,15 +496,17 @@ STUDIO_HTML = """
 
             <!-- Split Screen Slider Viewport -->
             <div class="split-slider-viewport" id="split_slider_viewport">
-                <!-- Original Image (Bottom Layer) -->
+                <!-- Original Layer (Bottom Layer) -->
                 <div class="split-layer split-layer-original">
-                    <img id="compare_img_original" src="" alt="Original Video Frame">
-                    <span class="compare-badge badge-orig">ORIGINAL</span>
+                    <video id="compare_vid_original" playsinline muted style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;"></video>
+                    <img id="compare_img_original" src="" alt="Original Video Frame" style="display: none; width: 100%; height: 100%; object-fit: contain;">
+                    <span class="compare-badge badge-orig">ORIGINAL (WITH CAPTIONS)</span>
                 </div>
-                <!-- Clean Inpainted Image (Top Layer, clipped by split percentage) -->
+                <!-- Clean Inpainted Layer (Top Layer, clipped by split percentage) -->
                 <div class="split-layer split-layer-clean" id="split_layer_clean">
-                    <img id="compare_img_clean" src="" alt="Clean Inpainted Output">
-                    <span class="compare-badge badge-clean">CLEAN OUTPUT</span>
+                    <video id="compare_vid_clean" playsinline muted style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;"></video>
+                    <img id="compare_img_clean" src="" alt="Clean Inpainted Output" style="display: none; width: 100%; height: 100%; object-fit: contain;">
+                    <span class="compare-badge badge-clean">✨ CLEAN RESULT (REPAIRED)</span>
                 </div>
                 <!-- Draggable Divider Line & Knob -->
                 <div class="split-divider-line" id="split_divider_line">
@@ -475,7 +517,13 @@ STUDIO_HTML = """
                 </div>
             </div>
 
-            <p class="modal-bottom-hint">Drag the divider to inspect the inpainted result frame by frame.</p>
+            <div class="compare-modal-footer">
+                <button type="button" class="studio-btn-play" id="btn_compare_play_toggle" style="margin: 0 auto 8px auto; padding: 6px 18px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+                    <span id="compare_play_label">Play comparison in sync</span>
+                </button>
+                <p class="modal-bottom-hint">Drag the slider horizontally to compare before vs after removal.</p>
+            </div>
         </div>
     </div>
 

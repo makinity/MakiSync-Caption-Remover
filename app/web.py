@@ -67,6 +67,9 @@ if FFMPEG_BIN and Path(FFMPEG_BIN).exists():
         os.environ["PATH"] = _ff_dir + os.pathsep + os.environ.get("PATH", "")
 
 
+LATEST_REPAIRED_PATH: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -152,6 +155,9 @@ def _wait_and_open_browser(url: str, timeout: float = 30.0) -> None:
 
 def on_video_uploaded(video_path: Optional[str]):
     """When video is uploaded, probe dimensions, setup sliders, and video info."""
+    global LATEST_REPAIRED_PATH
+    LATEST_REPAIRED_PATH = None
+
     if not video_path:
         return (
             gr.update(maximum=1920, value=0),
@@ -186,6 +192,9 @@ def on_video_uploaded(video_path: Optional[str]):
 
 def on_video_cleared():
     """Reset UI cleanly when video is cleared."""
+    global LATEST_REPAIRED_PATH
+    LATEST_REPAIRED_PATH = None
+
     return (
         gr.update(maximum=1920, value=0),
         gr.update(maximum=1080, value=0),
@@ -352,6 +361,9 @@ def process_video(
 
     _update_progress(1.0, desc=f"Completed in {int(time.time() - start_ts)}s!")
     clean_path_str = str(out_file)
+    global LATEST_REPAIRED_PATH
+    LATEST_REPAIRED_PATH = clean_path_str
+    print(f"[web] Saved LATEST_REPAIRED_PATH: {LATEST_REPAIRED_PATH}")
     return clean_path_str, clean_path_str
 
 
@@ -398,6 +410,7 @@ def build_ui() -> Tuple[gr.Blocks, gr.Theme, str]:
             color_radio = gr.Radio(
                 choices=[
                     ("white_stroke", "white_stroke"),
+                    ("white", "white"),
                     ("colored_box", "colored_box"),
                     ("full_box", "full_box"),
                     ("black", "black"),
@@ -414,8 +427,8 @@ def build_ui() -> Tuple[gr.Blocks, gr.Theme, str]:
                 elem_id="radio_process_mode",
             )
             preview_chk = gr.Checkbox(value=False, elem_id="chk_preview")
-            dilate_slider = gr.Slider(1, 6, value=2, step=1, elem_id="slider_dilate")
-            lama_extra_slider = gr.Slider(0, 6, value=1, step=1, elem_id="slider_lama_extra")
+            dilate_slider = gr.Slider(1, 6, value=3, step=1, elem_id="slider_dilate")
+            lama_extra_slider = gr.Slider(0, 6, value=2, step=1, elem_id="slider_lama_extra")
             temporal_slider = gr.Slider(1, 24, value=12, step=1, elem_id="slider_temporal")
 
             run_btn = gr.Button("Remove Captions", elem_id="btn_run_pipeline")
@@ -508,15 +521,79 @@ def main() -> None:
     port = int(os.environ.get('PORT', 0)) or _find_available_port(7860, 50)
     url = f"http://127.0.0.1:{port}"
     print(f"[web] url = {url}")
+
+    # Build comprehensive list of allowed paths for Gradio 6 static asset serving
+    temp_dirs = [
+        tempfile.gettempdir(),
+        os.path.realpath(tempfile.gettempdir()),
+        os.path.abspath('.'),
+    ]
+    for env_k in ('TEMP', 'TMP', 'TMPDIR'):
+        val = os.environ.get(env_k)
+        if val and os.path.exists(val):
+            temp_dirs.append(val)
+            temp_dirs.append(os.path.realpath(val))
+    allowed_paths = [p for p in set(temp_dirs) if os.path.exists(p)]
+    print(f"[web] allowed_paths = {allowed_paths}")
+
     threading.Thread(target=_wait_and_open_browser, args=(url,), daemon=True).start()
-    demo.queue(max_size=4).launch(
+    app, local_url, share_url = demo.queue(max_size=4).launch(
         server_name=os.environ.get('GRADIO_SERVER_NAME', '0.0.0.0' if ('PORT' in os.environ or 'RENDER' in os.environ) else '127.0.0.1'),
         server_port=port,
         inbrowser=False,
         share=False,
         theme=theme,
         css=css,
+        allowed_paths=allowed_paths,
+        prevent_thread_lock=True,
     )
+
+    from starlette.responses import FileResponse, PlainTextResponse, JSONResponse, RedirectResponse
+
+    async def _status_handler(request):
+        global LATEST_REPAIRED_PATH
+        path = LATEST_REPAIRED_PATH
+        exists = bool(path and os.path.exists(path))
+        import torch
+        has_cuda = bool(torch.cuda.is_available())
+        gpu_name = torch.cuda.get_device_name(0) if has_cuda else "CPU Mode"
+        return JSONResponse({
+            "has_result": exists,
+            "path": path or "",
+            "filename": os.path.basename(path) if (path and exists) else "",
+            "preview_url": "/preview_result" if exists else "",
+            "download_url": "/download_result" if exists else "",
+            "cuda_available": has_cuda,
+            "device_name": gpu_name,
+        })
+
+    async def _preview_handler(request):
+        global LATEST_REPAIRED_PATH
+        path = LATEST_REPAIRED_PATH
+        if not path or not os.path.exists(path):
+            return PlainTextResponse("No clean video available yet", status_code=404)
+        return FileResponse(path, media_type="video/mp4")
+
+    async def _download_handler(request):
+        global LATEST_REPAIRED_PATH
+        path = LATEST_REPAIRED_PATH
+        if not path or not os.path.exists(path):
+            return PlainTextResponse("No clean video available yet", status_code=404)
+        fname = os.path.basename(path)
+        if not fname.startswith("clean_"):
+            fname = f"clean_{fname}"
+        return FileResponse(path, media_type="video/mp4", filename=fname)
+
+    async def _legacy_file_redirect(request):
+        raw = request.path_params.get("path", "")
+        return RedirectResponse(f"/gradio_api/file={raw}")
+
+    app.router.add_route("/status_result", _status_handler)
+    app.router.add_route("/preview_result", _preview_handler)
+    app.router.add_route("/download_result", _download_handler)
+    app.router.add_route("/file={path:path}", _legacy_file_redirect)
+
+    demo.block_thread()
 
 
 if __name__ == "__main__":
