@@ -285,7 +285,7 @@ def process_video(
     frame_w, frame_h = _get_video_dimensions(video_path)
     roi_tuple = _corners_to_roi(int(left_x), int(bottom_y), int(right_x), int(top_y), frame_w, frame_h)
     if roi_tuple[2] <= 1 or roi_tuple[3] <= 1:
-        raise gr.Error("Please select a valid subtitle region using the canvas or sliders")
+        raise gr.Error("Please drag a box over the subtitle or watermark area you wish to remove.")
 
     if clip_trim and clip_end > 0 and clip_end <= clip_start:
         raise gr.Error(f"End Time ({clip_end}s) must be greater than Start Time ({clip_start}s)")

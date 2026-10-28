@@ -48,9 +48,9 @@ STUDIO_HTML = """
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 14.5A4.5 4.5 0 0 0 15 10H14A6 6 0 0 0 2 15a4 4 0 0 0 4 4h13a4.5 4.5 0 0 0 0-9z"></path><path d="m9 15 2 2 4-4"></path></svg>
                 Autosaved
             </span>
-            <button type="button" class="fit-canvas-btn" id="btn_fit_canvas">
+            <button type="button" class="fit-canvas-btn" id="btn_fit_canvas" title="Reset Zoom & Fit Canvas (F / Esc)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
-                Fit canvas
+                <span id="btn_fit_canvas_text">Fit canvas</span>
             </button>
         </div>
     </div>
@@ -76,6 +76,14 @@ STUDIO_HTML = """
                 </div>
                 
                 <div class="monitor-viewport" id="studio_monitor_viewport">
+                    <!-- Zoom & Pan Status Pill (Photoshop / Figma Navigation) -->
+                    <div class="zoom-indicator-pill" id="zoom_indicator_pill" style="display: none;" title="Click to reset zoom (or press Esc / F)">
+                        <span class="zoom-pill-icon">🔍</span>
+                        <span class="zoom-pill-pct" id="zoom_pill_pct">100%</span>
+                        <div class="zoom-pill-divider"></div>
+                        <span class="zoom-pill-hint">Space + Drag to pan · Click to fit</span>
+                    </div>
+
                     <div id="video_player_mount">
                         <video id="studio_clean_video_player" class="hidden" controls playsinline style="display: none; width: 100%; height: 100%; object-fit: contain; border-radius: 6px; cursor: pointer; z-index: 25;" title="Clean Result Video Player"></video>
                     </div>
@@ -166,7 +174,7 @@ STUDIO_HTML = """
                 <div class="monitor-transport-bar">
                     <div class="transport-left">
                         <button type="button" class="transport-play-btn" id="btn_transport_play" title="Play / Pause (Spacebar)">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><polygon points="6 4 20 12 6 20 6 4" fill="#FFFFFF" stroke="#FFFFFF"></polygon></svg>
                         </button>
                         <span class="transport-timecode" id="transport_timecode">00:00.0 / 00:00.0</span>
                     </div>

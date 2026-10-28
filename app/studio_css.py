@@ -397,6 +397,95 @@ footer, header, button[aria-label*="Trim video"], button[title*="Trim video"], d
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Figma / Photoshop Pan & Zoom Styles */
+.monitor-viewport.panning-space-active,
+.monitor-viewport.panning-space-active * {
+    cursor: grab !important;
+}
+
+.monitor-viewport.is-panning,
+.monitor-viewport.is-panning * {
+    cursor: grabbing !important;
+    user-select: none !important;
+}
+
+.monitor-viewport.panning-space-active #roi_interactive_overlay,
+.monitor-viewport.is-panning #roi_interactive_overlay {
+    pointer-events: none !important;
+}
+
+#video_player_mount {
+    will-change: transform;
+    transform-origin: center center;
+}
+
+/* Floating Zoom Indicator Pill */
+.zoom-indicator-pill {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 45;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(139, 92, 246, 0.45);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    padding: 6px 14px;
+    border-radius: 9999px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #F8FAFC;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 12px rgba(139, 92, 246, 0.2);
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: zoomPillFadeIn 0.25s ease-out;
+}
+
+@keyframes zoomPillFadeIn {
+    from { opacity: 0; transform: translate(-50%, -6px) scale(0.96); }
+    to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+.zoom-indicator-pill:hover {
+    background: rgba(30, 41, 59, 0.95);
+    border-color: #8B5CF6;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7), 0 0 16px rgba(139, 92, 246, 0.35);
+}
+
+.zoom-indicator-pill .zoom-pill-icon {
+    font-size: 0.8rem;
+}
+
+.zoom-indicator-pill .zoom-pill-pct {
+    color: #A78BFA;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.zoom-indicator-pill .zoom-pill-divider {
+    width: 1px;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.zoom-indicator-pill .zoom-pill-hint {
+    color: #94A3B8;
+    font-size: 0.72rem;
+    font-weight: 500;
+}
+
+.fit-canvas-btn.zoom-active {
+    background: rgba(139, 92, 246, 0.18) !important;
+    border-color: #8B5CF6 !important;
+    color: #C4B5FD !important;
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.3) !important;
+}
+
 /* 16:9 Landscape Video Mode */
 .monitor-viewport.viewport-landscape {
     height: 480px;
@@ -743,15 +832,31 @@ video {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.10);
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    color: #FFFFFF;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    color: #FFFFFF !important;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    padding: 0;
+}
+
+.transport-play-btn svg {
+    display: block !important;
+    width: 14px !important;
+    height: 14px !important;
+    fill: #FFFFFF !important;
+    stroke: #FFFFFF !important;
+    color: #FFFFFF !important;
+}
+
+.transport-play-btn svg polygon,
+.transport-play-btn svg rect {
+    fill: #FFFFFF !important;
+    stroke: #FFFFFF !important;
 }
 
 .transport-play-btn:hover {

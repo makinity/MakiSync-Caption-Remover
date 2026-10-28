@@ -90,11 +90,12 @@ STUDIO_JS = """
         activeMonitorTab: 'original',
         lastRepVideoSrc: '',
         lastFinishedPath: '',
+        hasUserDrawnRoi: false,
         isProcessing: false,
     };
 
     window.__STUDIO = studio;
-    window.__ROI_DATA = window.__ROI_DATA || { left_x: 0, bottom_y: 1080, right_x: 1920, top_y: 885 };
+    window.__ROI_DATA = null;
     window.__TRIM_DATA = window.__TRIM_DATA || { start: 0, end: 0, enabled: false };
 
     function findSourceVideo() {
@@ -244,14 +245,14 @@ STUDIO_JS = """
         if (badge) badge.innerText = ratioText;
         if (resFps) resFps.innerText = w + ' × ' + h + ' • 24 FPS';
 
-        // Auto-adapt ROI preset when video dimensions change
+        // Reset ROI when video dimensions change so user starts clean
         if (studio.lastW !== w || studio.lastH !== h) {
             studio.lastW = w;
             studio.lastH = h;
+            studio.hasUserDrawnRoi = false;
+            window.__ROI_DATA = null;
+            if (box) box.style.display = 'none';
             setTimeout(() => {
-                if (typeof window.__snapRoiPreset === 'function') {
-                    window.__snapRoiPreset('bottom');
-                }
                 updateOverlayPosition();
             }, 60);
         }
@@ -263,6 +264,24 @@ STUDIO_JS = """
         const playBtn = document.getElementById('btn_transport_play');
         const muteBtn = document.getElementById('btn_transport_mute');
 
+        if (playBtn) {
+            const isPaused = !v || v.paused;
+            if (isPaused) {
+                playBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><polygon points="6 4 20 12 6 20 6 4" fill="#FFFFFF" stroke="#FFFFFF"></polygon></svg>';
+            } else {
+                playBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" fill="#FFFFFF" stroke="#FFFFFF"></rect><rect x="14" y="4" width="4" height="16" fill="#FFFFFF" stroke="#FFFFFF"></rect></svg>';
+            }
+        }
+
+        if (muteBtn) {
+            const isMuted = v ? v.muted : false;
+            if (isMuted) {
+                muteBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>';
+            } else {
+                muteBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+            }
+        }
+
         if (!v || isNaN(v.duration) || v.duration <= 0) {
             if (timecodeEl) timecodeEl.innerText = '00:00.0 / 00:00.0';
             return;
@@ -272,22 +291,6 @@ STUDIO_JS = """
         const dur = v.duration || 0;
         if (timecodeEl) {
             timecodeEl.innerText = formatTimecode(cur) + ' / ' + formatTimecode(dur);
-        }
-
-        if (playBtn) {
-            if (v.paused) {
-                playBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>';
-            } else {
-                playBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
-            }
-        }
-
-        if (muteBtn) {
-            if (v.muted) {
-                muteBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>';
-            } else {
-                muteBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
-            }
         }
     }
 
@@ -319,6 +322,7 @@ STUDIO_JS = """
         if (fitBtn && !fitBtn.__hasInit) {
             fitBtn.__hasInit = true;
             fitBtn.addEventListener('click', () => {
+                resetZoom(true);
                 const v = studio.video || findSourceVideo();
                 if (!v) return;
                 v.style.objectFit = 'contain';
@@ -678,6 +682,188 @@ STUDIO_JS = """
     // -------------------------------------------------------------
     // Interactive Draggable ROI Canvas Controller (Monitor Overlay)
     // -------------------------------------------------------------
+    // Canvas Pan & Zoom Controller (Photoshop / Figma Navigation)
+    // -------------------------------------------------------------
+    let zoomScale = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let isPanning = false;
+    let panStartX = 0;
+    let panStartY = 0;
+    let spaceHeld = false;
+    let spaceDidPan = false;
+    let isMouseOverViewport = false;
+
+    function clampPan() {
+        const viewport = document.getElementById('studio_monitor_viewport');
+        if (!viewport) return;
+        const vw = viewport.clientWidth || 800;
+        const vh = viewport.clientHeight || 480;
+
+        if (zoomScale <= 1.01) {
+            zoomScale = 1.0;
+            panX = 0;
+            panY = 0;
+            return;
+        }
+
+        const maxPanX = (vw / 2) * (zoomScale - 0.2);
+        const minPanX = -maxPanX;
+        const maxPanY = (vh / 2) * (zoomScale - 0.2);
+        const minPanY = -maxPanY;
+
+        panX = Math.max(minPanX, Math.min(maxPanX, panX));
+        panY = Math.max(minPanY, Math.min(maxPanY, panY));
+    }
+
+    function applyZoomTransform() {
+        const mount = document.getElementById('video_player_mount');
+        if (!mount) return;
+        mount.style.transformOrigin = 'center center';
+        mount.style.transform = `translate(${Math.round(panX)}px, ${Math.round(panY)}px) scale(${zoomScale})`;
+        updateZoomUI();
+    }
+
+    function resetZoom(smooth = true) {
+        zoomScale = 1.0;
+        panX = 0;
+        panY = 0;
+        const mount = document.getElementById('video_player_mount');
+        if (mount) {
+            if (smooth) mount.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
+            mount.style.transformOrigin = 'center center';
+            mount.style.transform = 'translate(0px, 0px) scale(1)';
+            if (smooth) {
+                setTimeout(() => {
+                    if (mount) mount.style.transition = '';
+                }, 240);
+            }
+        }
+        updateZoomUI();
+    }
+
+    function updateZoomUI() {
+        const pill = document.getElementById('zoom_indicator_pill');
+        const pctEl = document.getElementById('zoom_pill_pct');
+        const fitBtn = document.getElementById('btn_fit_canvas');
+        const fitText = document.getElementById('btn_fit_canvas_text');
+
+        const pct = Math.round(zoomScale * 100);
+
+        if (zoomScale > 1.01) {
+            if (pill) {
+                pill.style.display = 'inline-flex';
+                if (pctEl) pctEl.innerText = pct + '%';
+            }
+            if (fitBtn) fitBtn.classList.add('zoom-active');
+            if (fitText) fitText.innerText = `Fit (${pct}%)`;
+        } else {
+            if (pill) pill.style.display = 'none';
+            if (fitBtn) fitBtn.classList.remove('zoom-active');
+            if (fitText) fitText.innerText = 'Fit canvas';
+        }
+    }
+
+    function attachCanvasPanZoomListeners() {
+        const viewport = document.getElementById('studio_monitor_viewport');
+        if (!viewport || viewport.__hasPanZoomInit) return;
+        viewport.__hasPanZoomInit = true;
+
+        viewport.addEventListener('mouseenter', () => {
+            isMouseOverViewport = true;
+        });
+        viewport.addEventListener('mouseleave', () => {
+            isMouseOverViewport = false;
+            if (spaceHeld && !isPanning) {
+                spaceHeld = false;
+                viewport.classList.remove('panning-space-active');
+            }
+        });
+
+        // Wheel Zoom centered on cursor relative to center-origin
+        viewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = viewport.getBoundingClientRect();
+            const cx = rect.width / 2;
+            const cy = rect.height / 2;
+
+            // Cursor vector relative to viewport center:
+            const cursorVx = (e.clientX - rect.left) - cx;
+            const cursorVy = (e.clientY - rect.top) - cy;
+
+            const zoomDelta = e.deltaY < 0 ? 1.15 : (1 / 1.15);
+            let targetZoom = zoomScale * zoomDelta;
+
+            if (targetZoom < 1.0) targetZoom = 1.0;
+            if (targetZoom > 5.0) targetZoom = 5.0;
+
+            if (Math.abs(targetZoom - zoomScale) < 0.001) return;
+
+            if (targetZoom <= 1.01) {
+                resetZoom(true);
+                return;
+            }
+
+            // Center-origin cursor tracking (no left-drift!):
+            panX = cursorVx - (cursorVx - panX) * (targetZoom / zoomScale);
+            panY = cursorVy - (cursorVy - panY) * (targetZoom / zoomScale);
+            zoomScale = targetZoom;
+            clampPan();
+            applyZoomTransform();
+        }, { passive: false });
+
+        // Pan Pointerdown (Middle click OR Spacebar + Left Click)
+        viewport.addEventListener('pointerdown', (e) => {
+            if (e.button === 1 || (e.button === 0 && spaceHeld)) {
+                isPanning = true;
+                spaceDidPan = true;
+                panStartX = e.clientX - panX;
+                panStartY = e.clientY - panY;
+                viewport.classList.add('is-panning');
+                viewport.setPointerCapture(e.pointerId);
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+
+        viewport.addEventListener('pointermove', (e) => {
+            if (!isPanning) return;
+            panX = e.clientX - panStartX;
+            panY = e.clientY - panStartY;
+            clampPan();
+            applyZoomTransform();
+        });
+
+        const stopPan = (e) => {
+            if (isPanning) {
+                isPanning = false;
+                viewport.classList.remove('is-panning');
+                try { viewport.releasePointerCapture(e.pointerId); } catch (_) {}
+            }
+        };
+
+        viewport.addEventListener('pointerup', stopPan);
+        viewport.addEventListener('pointercancel', stopPan);
+
+        // Double-click empty canvas to reset zoom
+        viewport.addEventListener('dblclick', (e) => {
+            if (e.target.closest('#roi_interactive_box') || e.target.closest('#roi_floating_pill')) return;
+            if (zoomScale > 1.01) {
+                resetZoom(true);
+            }
+        });
+
+        const pill = document.getElementById('zoom_indicator_pill');
+        if (pill) {
+            pill.addEventListener('click', () => {
+                resetZoom(true);
+            });
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Interactive Draggable ROI Canvas Controller (Monitor Overlay)
+    // -------------------------------------------------------------
     let overlay = null;
     let box = null;
     let badge = null;
@@ -695,8 +881,9 @@ STUDIO_JS = """
         const rect = el.getBoundingClientRect();
         const natW = el.videoWidth || el.naturalWidth || 1920;
         const natH = el.videoHeight || el.naturalHeight || 1080;
-        const elemW = rect.width;
-        const elemH = rect.height;
+        const curScale = (typeof zoomScale !== 'undefined' && zoomScale > 0) ? zoomScale : 1.0;
+        const elemW = rect.width / curScale;
+        const elemH = rect.height / curScale;
         if (elemW <= 0 || elemH <= 0) return null;
 
         const elRatio = natW / natH;
@@ -715,8 +902,8 @@ STUDIO_JS = """
             offsetY = 0;
         }
         return {
-            left: rect.left + offsetX,
-            top: rect.top + offsetY,
+            left: rect.left + offsetX * curScale,
+            top: rect.top + offsetY * curScale,
             width: renderW,
             height: renderH,
             naturalWidth: natW,
@@ -812,26 +999,27 @@ STUDIO_JS = """
 
         const offsetParent = overlay.offsetParent || video.parentElement || document.getElementById('studio_monitor_viewport');
         const parentRect = offsetParent ? offsetParent.getBoundingClientRect() : { left: 0, top: 0 };
-        overlay.style.left = Math.round(r.left - parentRect.left) + 'px';
-        overlay.style.top = Math.round(r.top - parentRect.top) + 'px';
+        const curScale = (typeof zoomScale !== 'undefined' && zoomScale > 0) ? zoomScale : 1.0;
+        overlay.style.left = Math.round((r.left - parentRect.left) / curScale) + 'px';
+        overlay.style.top = Math.round((r.top - parentRect.top) / curScale) + 'px';
         overlay.style.width = Math.round(r.width) + 'px';
         overlay.style.height = Math.round(r.height) + 'px';
 
         // Keep floating pill anchored at the bottom of the rendered video
         if (pill) {
             pill.style.display = 'flex';
-            const viewportRect = document.getElementById('studio_monitor_viewport').getBoundingClientRect();
-            const relBottom = viewportRect.bottom - r.top - r.height;
-            pill.style.bottom = Math.max(16, relBottom + 16) + 'px';
+            pill.style.bottom = '16px';
         }
 
-        if (window.__ROI_DATA && !isInteracting) {
+        if (window.__ROI_DATA && !isInteracting && studio.hasUserDrawnRoi) {
             syncBoxFromCoordinates(
                 window.__ROI_DATA.left_x,
                 window.__ROI_DATA.bottom_y,
                 window.__ROI_DATA.right_x,
                 window.__ROI_DATA.top_y
             );
+        } else if (!studio.hasUserDrawnRoi || !window.__ROI_DATA) {
+            if (box) box.style.display = 'none';
         }
     }
 
@@ -896,6 +1084,7 @@ STUDIO_JS = """
 
     // Smart ratio-adaptive presets for 16:9 and 9:16
     window.__snapRoiPreset = function(type) {
+        studio.hasUserDrawnRoi = true;
         studio.selectedPreset = type;
         const video = findSourceVideo();
         const natW = video ? (video.videoWidth || 1920) : 1920;
@@ -961,9 +1150,11 @@ STUDIO_JS = """
         if (!overlay) return;
 
         overlay.addEventListener('pointerdown', (e) => {
+            if (spaceHeld || e.button === 1) return;
             const overlayRect = overlay.getBoundingClientRect();
-            const relX = e.clientX - overlayRect.left;
-            const relY = e.clientY - overlayRect.top;
+            const curScale = (typeof zoomScale !== 'undefined' && zoomScale > 0) ? zoomScale : 1.0;
+            const relX = (e.clientX - overlayRect.left) / curScale;
+            const relY = (e.clientY - overlayRect.top) / curScale;
 
             if (e.target.dataset && e.target.dataset.handle) {
                 isInteracting = true;
@@ -988,6 +1179,7 @@ STUDIO_JS = """
 
             isInteracting = true;
             currentMode = 'drawing';
+            studio.hasUserDrawnRoi = true;
             startX = relX;
             startY = relY;
             boxLeft = relX;
@@ -1005,19 +1197,22 @@ STUDIO_JS = """
         overlay.addEventListener('pointermove', (e) => {
             if (!isInteracting) return;
             const overlayRect = overlay.getBoundingClientRect();
-            const relX = e.clientX - overlayRect.left;
-            const relY = e.clientY - overlayRect.top;
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
+            const curScale = (typeof zoomScale !== 'undefined' && zoomScale > 0) ? zoomScale : 1.0;
+            const unscaledW = overlayRect.width / curScale;
+            const unscaledH = overlayRect.height / curScale;
+            const relX = (e.clientX - overlayRect.left) / curScale;
+            const relY = (e.clientY - overlayRect.top) / curScale;
+            const dx = (e.clientX - startX) / curScale;
+            const dy = (e.clientY - startY) / curScale;
 
             if (currentMode === 'drawing') {
                 boxLeft = Math.max(0, Math.min(startX, relX));
                 boxTop = Math.max(0, Math.min(startY, relY));
-                boxWidth = Math.min(overlayRect.width - boxLeft, Math.abs(relX - startX));
-                boxHeight = Math.min(overlayRect.height - boxTop, Math.abs(relY - startY));
+                boxWidth = Math.min(unscaledW - boxLeft, Math.abs(relX - startX));
+                boxHeight = Math.min(unscaledH - boxTop, Math.abs(relY - startY));
             } else if (currentMode === 'moving') {
-                boxLeft = Math.max(0, Math.min(overlayRect.width - initialBox.w, initialBox.l + dx));
-                boxTop = Math.max(0, Math.min(overlayRect.height - initialBox.h, initialBox.t + dy));
+                boxLeft = Math.max(0, Math.min(unscaledW - initialBox.w, initialBox.l + dx));
+                boxTop = Math.max(0, Math.min(unscaledH - initialBox.h, initialBox.t + dy));
                 boxWidth = initialBox.w;
                 boxHeight = initialBox.h;
             } else if (currentMode === 'resizing') {
@@ -1029,8 +1224,8 @@ STUDIO_JS = """
 
                 boxLeft = Math.max(0, l);
                 boxTop = Math.max(0, t);
-                boxWidth = Math.min(overlayRect.width - boxLeft, r - l);
-                boxHeight = Math.min(overlayRect.height - boxTop, b - t);
+                boxWidth = Math.min(unscaledW - boxLeft, r - l);
+                boxHeight = Math.min(unscaledH - boxTop, b - t);
             }
 
             const video = findSourceVideo();
@@ -1057,16 +1252,15 @@ STUDIO_JS = """
             const r = getRenderedMediaRect(video);
             if (!r || !r.naturalWidth) return;
 
-            if (boxWidth < 6 || boxHeight < 6) {
-                const tapX = boxLeft;
-                const tapY = boxTop;
-                const defW = r.width * 0.65;
-                const defH = r.height * 0.16;
-                boxLeft = Math.max(0, Math.min(r.width - defW, tapX - defW / 2));
-                boxTop = Math.max(0, Math.min(r.height - defH, tapY - defH / 2));
-                boxWidth = defW;
-                boxHeight = defH;
+            if (boxWidth < 10 || boxHeight < 10) {
+                // Tapped or clicked without dragging: cancel and keep screen clean
+                if (box) box.style.display = 'none';
+                studio.hasUserDrawnRoi = false;
+                window.__ROI_DATA = null;
+                return;
             }
+
+            studio.hasUserDrawnRoi = true;
 
             const natX1 = Math.max(0, Math.min(r.naturalWidth, Math.round((boxLeft / r.width) * r.naturalWidth)));
             const natY1 = Math.max(0, Math.min(r.naturalHeight, Math.round((boxTop / r.height) * r.naturalHeight)));
@@ -2095,17 +2289,34 @@ STUDIO_JS = """
 
             if (e.key === 'Escape') {
                 closeAllModals();
+                if (zoomScale > 1.01) {
+                    resetZoom(true);
+                }
+                return;
+            }
+
+            if (e.code === 'Space') {
+                const viewport = document.getElementById('studio_monitor_viewport');
+                if (isMouseOverViewport && viewport) {
+                    spaceHeld = true;
+                    spaceDidPan = false;
+                    viewport.classList.add('panning-space-active');
+                    e.preventDefault();
+                    return;
+                }
+
+                const v = getActiveVideo();
+                if (!v) return;
+                e.preventDefault();
+                if (v.paused) v.play(); else v.pause();
+                updateTransportUI();
                 return;
             }
 
             const v = getActiveVideo();
             if (!v) return;
 
-            if (e.code === 'Space') {
-                e.preventDefault();
-                if (v.paused) v.play(); else v.pause();
-                updateTransportUI();
-            } else if (e.key === '[' || e.key === '{') {
+            if (e.key === '[' || e.key === '{') {
                 e.preventDefault();
                 document.getElementById('capcut_btn_set_in')?.click();
             } else if (e.key === ']' || e.key === '}') {
@@ -2116,6 +2327,26 @@ STUDIO_JS = """
                 updateTransportUI();
             } else if (e.key === 'f' || e.key === 'F') {
                 document.getElementById('btn_fit_canvas')?.click();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                const viewport = document.getElementById('studio_monitor_viewport');
+                if (viewport) {
+                    viewport.classList.remove('panning-space-active', 'is-panning');
+                }
+                if (spaceHeld) {
+                    spaceHeld = false;
+                    if (!spaceDidPan) {
+                        const v = getActiveVideo();
+                        if (v) {
+                            if (v.paused) v.play(); else v.pause();
+                            updateTransportUI();
+                        }
+                    }
+                    spaceDidPan = false;
+                }
             }
         });
     }
@@ -2277,6 +2508,7 @@ STUDIO_JS = """
         attachResultDockListeners();
         setupMonitorTabs();
         setupKeyboardShortcuts();
+        attachCanvasPanZoomListeners();
 
         // Overlay element lifecycle
         if (!overlay || !document.contains(overlay)) {
@@ -2286,7 +2518,7 @@ STUDIO_JS = """
         }
 
         // Sync slider changes from python/gradio
-        if (!isInteracting) {
+        if (!isInteracting && studio.hasUserDrawnRoi) {
             const lxInput = document.querySelector('#slider_left_x input');
             const byInput = document.querySelector('#slider_bottom_y input');
             const rxInput = document.querySelector('#slider_right_x input');
@@ -2316,11 +2548,13 @@ RUN_BTN_JS = """
         let [video, lx, by, rx, ty, trim, tStart, tEnd, color, mode, prev, dil, lama, temp] = args;
         const studio = window.__STUDIO || {};
 
-        if (window.__ROI_DATA) {
+        if (window.__ROI_DATA && studio.hasUserDrawnRoi) {
             lx = Math.round(Number(window.__ROI_DATA.left_x) || 0);
             by = Math.round(Number(window.__ROI_DATA.bottom_y) || 1080);
             rx = Math.round(Number(window.__ROI_DATA.right_x) || 1920);
             ty = Math.round(Number(window.__ROI_DATA.top_y) || 900);
+        } else {
+            lx = 0; by = 0; rx = 0; ty = 0;
         }
 
         const isTrim = Boolean(window.__TRIM_DATA && window.__TRIM_DATA.enabled && window.__TRIM_DATA.end > window.__TRIM_DATA.start);
