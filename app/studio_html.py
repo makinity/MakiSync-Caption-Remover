@@ -90,11 +90,7 @@ STUDIO_HTML = """
 
                     <!-- Interactive Floating Pill Bar over video -->
                     <div class="video-floating-pill" id="roi_floating_pill" style="display: none;">
-                        <button type="button" class="pill-btn" id="btn_pill_finetune" title="Open Advanced Coordinates Modal">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 7V4h3m10 0h3v3M4 17v3h3m10 0h3v-3"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                            Fine tune
-                        </button>
-                        <div class="pill-divider"></div>
+
                         <div class="pill-dropdown-wrap">
                             <button type="button" class="pill-btn" id="btn_pill_preset_trigger" title="Select Subtitle Snap Preset">
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"></path></svg>
@@ -403,14 +399,7 @@ STUDIO_HTML = """
                 </div>
             </div>
 
-            <!-- Advanced pixel coordinates trigger button -->
-            <div class="advanced-coords-row" id="btn_open_coords_modal">
-                <div class="advanced-left">
-                    <span class="chevron-arrow">›</span>
-                    <span>Advanced pixel coordinates</span>
-                </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </div>
+
 
             <!-- Bottom CTA Area -->
             <div class="inspector-cta-area">
@@ -436,60 +425,7 @@ STUDIO_HTML = """
         </aside>
     </div>
 
-    <!-- MODAL 1: Advanced Pixel Coordinates (Screenshot 3) -->
-    <div class="studio-modal-backdrop" id="modal_advanced_coords" style="display: none;">
-        <div class="studio-modal-card coords-modal-card">
-            <div class="modal-header">
-                <div>
-                    <span class="modal-tag-label">ROI PRECISION</span>
-                    <h3 class="modal-title">Advanced pixel coordinates</h3>
-                </div>
-                <button type="button" class="modal-close-btn" id="btn_close_coords_modal">✕</button>
-            </div>
-            <p class="modal-desc">Define the exact region to mask. Values are relative to the source frame.</p>
-            
-            <div class="coords-input-grid">
-                <div class="coord-field">
-                    <label class="coord-label">Left X</label>
-                    <div class="coord-input-wrap">
-                        <input type="number" id="modal_input_lx" min="0" value="120">
-                        <span class="coord-unit">px</span>
-                    </div>
-                </div>
-                <div class="coord-field">
-                    <label class="coord-label">Bottom Y</label>
-                    <div class="coord-input-wrap">
-                        <input type="number" id="modal_input_by" min="0" value="1650">
-                        <span class="coord-unit">px</span>
-                    </div>
-                </div>
-                <div class="coord-field">
-                    <label class="coord-label">Right X</label>
-                    <div class="coord-input-wrap">
-                        <input type="number" id="modal_input_rx" min="0" value="960">
-                        <span class="coord-unit">px</span>
-                    </div>
-                </div>
-                <div class="coord-field">
-                    <label class="coord-label">Top Y</label>
-                    <div class="coord-input-wrap">
-                        <input type="number" id="modal_input_ty" min="0" value="1830">
-                        <span class="coord-unit">px</span>
-                    </div>
-                </div>
-            </div>
 
-            <div class="modal-bottom-actions">
-                <button type="button" class="modal-reset-btn" id="btn_modal_coords_reset">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
-                    Reset to detected region
-                </button>
-                <button type="button" class="modal-apply-btn" id="btn_modal_coords_apply">
-                    <span>✦</span> Apply region
-                </button>
-            </div>
-        </div>
-    </div>
 
     <!-- MODAL 2: Before / After Comparison (Screenshot 2) -->
     <div class="studio-modal-backdrop" id="modal_comparison_view" style="display: none;">

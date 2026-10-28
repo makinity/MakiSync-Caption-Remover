@@ -1560,37 +1560,7 @@ video {
     box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
 }
 
-/* Advanced Pixel Coordinates Trigger */
-.advanced-coords-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 12px;
-    background: var(--studio-card);
-    border: 1px solid var(--studio-border);
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 0.76rem;
-    font-weight: 600;
-    color: var(--studio-text-muted);
-    transition: all 0.15s ease;
-}
 
-.advanced-coords-row:hover {
-    color: #FFFFFF;
-    border-color: #475569;
-}
-
-.advanced-left {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.chevron-arrow {
-    font-size: 1rem;
-    color: var(--studio-purple);
-}
 
 /* Bottom CTA Area */
 .inspector-cta-area {
@@ -1773,84 +1743,7 @@ video {
     line-height: 1.4;
 }
 
-/* Modal 1: Coords Input Grid */
-.coords-input-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 20px;
-}
 
-.coord-field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.coord-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--studio-text-subtle);
-}
-
-.coord-input-wrap {
-    display: flex;
-    align-items: center;
-    background: #050811;
-    border: 1px solid var(--studio-border);
-    border-radius: 6px;
-    padding: 6px 10px;
-}
-
-.coord-input-wrap input {
-    background: transparent;
-    border: none;
-    color: #FFFFFF;
-    font-size: 0.85rem;
-    font-weight: 600;
-    font-family: monospace;
-    width: 100%;
-    outline: none;
-}
-
-.coord-unit {
-    font-size: 0.72rem;
-    color: var(--studio-text-subtle);
-}
-
-.modal-bottom-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.modal-reset-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: transparent;
-    border: none;
-    color: var(--studio-text-muted);
-    font-size: 0.76rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-.modal-reset-btn:hover { color: #FFFFFF; }
-
-.modal-apply-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: linear-gradient(135deg, #7C3AED 0%, #9333EA 100%);
-    border: none;
-    color: #FFFFFF;
-    font-size: 0.82rem;
-    font-weight: 700;
-    padding: 8px 18px;
-    border-radius: 8px;
-    cursor: pointer;
-    box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
-}
 
 /* Modal 2: Before / After Split Slider */
 .split-slider-viewport {

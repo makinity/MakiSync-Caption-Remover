@@ -1277,19 +1277,10 @@ STUDIO_JS = """
 
     // -------------------------------------------------------------
     // Floating Video Pill Bar Listeners
-    // -------------------------------------------------------------
     function attachPillListeners() {
-        const btnFineTune = document.getElementById('btn_pill_finetune');
         const btnPresetTrig = document.getElementById('btn_pill_preset_trigger');
         const menu = document.getElementById('preset_dropdown_menu');
         const btnSnap = document.getElementById('btn_pill_snap');
-
-        if (btnFineTune && !btnFineTune.__hasInit) {
-            btnFineTune.__hasInit = true;
-            btnFineTune.addEventListener('click', () => {
-                openCoordsModal();
-            });
-        }
 
         if (btnPresetTrig && !btnPresetTrig.__hasInit) {
             btnPresetTrig.__hasInit = true;
@@ -1399,12 +1390,7 @@ STUDIO_JS = """
             });
         }
 
-        // Advanced Coords Row trigger
-        const advRow = document.getElementById('btn_open_coords_modal');
-        if (advRow && !advRow.__hasInit) {
-            advRow.__hasInit = true;
-            advRow.addEventListener('click', openCoordsModal);
-        }
+
 
         // Inspector Reset Button (Restores anti-blur smooth removal defaults)
         const resetBtn = document.getElementById('btn_inspector_reset');
@@ -2024,23 +2010,7 @@ STUDIO_JS = """
     }
 
     // -------------------------------------------------------------
-    // Modals Management (Shortcuts, Docs, Coords, Compare)
-    // -------------------------------------------------------------
-    function openCoordsModal() {
-        const modal = document.getElementById('modal_advanced_coords');
-        if (!modal) return;
-        const cur = window.__ROI_DATA || { left_x: 120, bottom_y: 1650, right_x: 960, top_y: 1830 };
-        const inLx = document.getElementById('modal_input_lx');
-        const inBy = document.getElementById('modal_input_by');
-        const inRx = document.getElementById('modal_input_rx');
-        const inTy = document.getElementById('modal_input_ty');
-        if (inLx) inLx.value = cur.left_x;
-        if (inBy) inBy.value = cur.bottom_y;
-        if (inRx) inRx.value = cur.right_x;
-        if (inTy) inTy.value = cur.top_y;
 
-        modal.style.display = 'flex';
-    }
 
     function closeAllModals() {
         document.querySelectorAll('.studio-modal-backdrop').forEach(m => m.style.display = 'none');
@@ -2193,24 +2163,7 @@ STUDIO_JS = """
     }
 
     function attachAllModalListeners() {
-        // Modal 1: Coords
-        const modalCoords = document.getElementById('modal_advanced_coords');
-        if (modalCoords && !modalCoords.__hasInit) {
-            modalCoords.__hasInit = true;
-            document.getElementById('btn_close_coords_modal')?.addEventListener('click', () => modalCoords.style.display = 'none');
-            modalCoords.addEventListener('click', (e) => { if (e.target === modalCoords) modalCoords.style.display = 'none'; });
 
-            document.getElementById('btn_modal_coords_reset')?.addEventListener('click', () => window.__snapRoiPreset('bottom'));
-            document.getElementById('btn_modal_coords_apply')?.addEventListener('click', () => {
-                const lx = parseInt(document.getElementById('modal_input_lx')?.value) || 0;
-                const by = parseInt(document.getElementById('modal_input_by')?.value) || 0;
-                const rx = parseInt(document.getElementById('modal_input_rx')?.value) || 0;
-                const ty = parseInt(document.getElementById('modal_input_ty')?.value) || 0;
-                pushCoordinatesToGradio(lx, by, rx, ty);
-                syncBoxFromCoordinates(lx, by, rx, ty);
-                modalCoords.style.display = 'none';
-            });
-        }
 
         // Modal 2: Compare
         const modalCompare = document.getElementById('modal_comparison_view');
