@@ -63,7 +63,7 @@ class AppConfig:
     merge_distance: int = 6              # used to merge nearby components
 
     # ---- Anti-Flicker & Temporal smoothing --------------------------
-    temporal_window: int = 12             # +/- frames; 0 disables smoothing
+    temporal_window: int = 1              # +/- frames; 1 = crisp motion (0 disables)
     temporal_mode: str = "union"         # union | vote
     temporal_vote_min: int = 2           # min hits across window for vote
     temporal_gap_fill: int = 8           # bridge subtitle gaps up to 8 frames (~250ms)
@@ -72,7 +72,7 @@ class AppConfig:
     # ---- Inpainting backend -----------------------------------------
     backend: Backend = "lama"
     lama_device: str = "auto"            # "auto" | "cpu" | "cuda" | "mps"
-    lama_dilate_extra: int = 4           # extra dilation feeding LaMa
+    lama_dilate_extra: int = 0           # extra dilation feeding LaMa (0 = crisp texture)
     lama_crop_padding: int = 32          # context around subtitle bbox
     batch_size: int = 4                  # batch size for neural inference
     opencv_inpaint_radius: float = 3.0

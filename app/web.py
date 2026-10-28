@@ -428,8 +428,8 @@ def build_ui() -> Tuple[gr.Blocks, gr.Theme, str]:
             )
             preview_chk = gr.Checkbox(value=False, elem_id="chk_preview")
             dilate_slider = gr.Slider(1, 6, value=3, step=1, elem_id="slider_dilate")
-            lama_extra_slider = gr.Slider(0, 6, value=2, step=1, elem_id="slider_lama_extra")
-            temporal_slider = gr.Slider(1, 24, value=12, step=1, elem_id="slider_temporal")
+            lama_extra_slider = gr.Slider(0, 6, value=0, step=1, elem_id="slider_lama_extra")
+            temporal_slider = gr.Slider(1, 24, value=1, step=1, elem_id="slider_temporal")
 
             run_btn = gr.Button("Remove Captions", elem_id="btn_run_pipeline")
 

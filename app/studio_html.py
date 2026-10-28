@@ -373,25 +373,25 @@ STUDIO_HTML = """
                     </div>
                     <input type="range" min="1" max="6" value="3" step="1" class="studio-range" id="input_mask_dilation">
 
-                    <!-- Slider 2: LaMa Extra Padding (Keep 2 px) -->
+                    <!-- Slider 2: LaMa Extra Padding (0 px default) -->
                     <div class="tuning-row" style="margin-top: 14px;">
                         <div class="tuning-label-wrap">
                             <span class="tuning-label">LaMa extra padding</span>
-                            <span class="tuning-hint">Keep 2 px (smooth skin blending)</span>
+                            <span class="tuning-hint">0 px (crisp texture preservation, 0–2 px)</span>
                         </div>
-                        <span class="tuning-val" id="val_lama_extra">2 px</span>
+                        <span class="tuning-val" id="val_lama_extra">0 px</span>
                     </div>
-                    <input type="range" min="0" max="6" value="2" step="1" class="studio-range" id="input_lama_extra">
+                    <input type="range" min="0" max="6" value="0" step="1" class="studio-range" id="input_lama_extra">
 
-                    <!-- Slider 3: Temporal Anti-Flicker (10-14 recommended) -->
+                    <!-- Slider 3: Temporal Anti-Flicker (1 default) -->
                     <div class="tuning-row" style="margin-top: 14px;">
                         <div class="tuning-label-wrap">
                             <span class="tuning-label">Temporal anti-flicker</span>
-                            <span class="tuning-hint">10–14 unifies animated captions</span>
+                            <span class="tuning-hint">1 (crisp motion, 1–12 for animated captions)</span>
                         </div>
-                        <span class="tuning-val" id="val_temporal_window">12</span>
+                        <span class="tuning-val" id="val_temporal_window">1</span>
                     </div>
-                    <input type="range" min="1" max="24" value="12" step="1" class="studio-range" id="input_temporal_window">
+                    <input type="range" min="1" max="24" value="1" step="1" class="studio-range" id="input_temporal_window">
                 </div>
             </div>
 
@@ -585,7 +585,8 @@ STUDIO_HTML = """
                 <div class="docs-block">
                     <h4>⚙️ Precision Tuning</h4>
                     <p><strong>Mask Dilation (2–4 px):</strong> Controls how tightly the mask wraps around letters. Keeping it around 3–4 px preserves background sharpness without ghost outlines.</p>
-                    <p><strong>Temporal Anti-Flicker (10–14):</strong> Prevents flickering across consecutive frames, especially for animated or karaoke style captions.</p>
+                    <p><strong>LaMa Extra Padding (0 px):</strong> Set to 0 px to prevent smearing clean background textures (like fabric, clothing, or hair). Use 1–2 px for flat skin.</p>
+                    <p><strong>Temporal Anti-Flicker (1):</strong> Default 1 preserves crisp frame-to-frame motion without dragging masks across moving characters. Increase to 10–14 for animated or karaoke style captions.</p>
                 </div>
             </div>
         </div>

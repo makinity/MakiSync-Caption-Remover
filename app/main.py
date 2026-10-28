@@ -58,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--backend", choices=["lama", "opencv", "propainter", "e2fgvi"], default="lama")
     p.add_argument("--lama-device", default="auto",
                    help="auto / cpu / cuda / mps")
-    p.add_argument("--lama-dilate-extra", type=int, default=4)
+    p.add_argument("--lama-dilate-extra", type=int, default=0)
     p.add_argument("--lama-crop-padding", type=int, default=48,
                    help="Extra context pixels around the subtitle bbox when running LaMa.")
     p.add_argument("--opencv-inpaint-radius", type=float, default=3.0,
@@ -81,7 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--merge-distance", type=int, default=6)
 
     # Temporal
-    p.add_argument("--temporal-window", type=int, default=2)
+    p.add_argument("--temporal-window", type=int, default=1)
     p.add_argument("--temporal-mode", choices=["union", "vote"], default="union")
     p.add_argument("--temporal-vote-min", type=int, default=2)
 

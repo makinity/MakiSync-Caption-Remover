@@ -83,8 +83,8 @@ STUDIO_JS = """
         activeStyle: 'white_stroke',
         activeMode: 'quality',
         maskDilation: 3,
-        lamaExtra: 2,
-        temporalWindow: 12,
+        lamaExtra: 0,
+        temporalWindow: 1,
         selectedPreset: 'bottom',
         detectedRatio: '16:9',
         activeMonitorTab: 'original',
@@ -1675,13 +1675,13 @@ STUDIO_JS = """
                 if (studio.activeMode) setGradioRadio('radio_process_mode', studio.activeMode);
 
                 const dilInp = document.getElementById('input_mask_dilation');
-                if (dilInp) setGradioInput('slider_dilate', dilInp.value || 2);
+                if (dilInp) setGradioInput('slider_dilate', dilInp.value || 3);
 
                 const lamaInp = document.getElementById('input_lama_extra');
-                if (lamaInp) setGradioInput('slider_lama_extra', lamaInp.value || 1);
+                if (lamaInp) setGradioInput('slider_lama_extra', (lamaInp.value !== '' ? lamaInp.value : 0));
 
                 const tempInp = document.getElementById('input_temporal_window');
-                if (tempInp) setGradioInput('slider_temporal', tempInp.value || 12);
+                if (tempInp) setGradioInput('slider_temporal', tempInp.value || 1);
 
                 // Find and click the Gradio run button
                 let gradioRun = document.getElementById('btn_run_pipeline');
@@ -2338,13 +2338,14 @@ RUN_BTN_JS = """
         prev = false;
 
         const dilInp = document.getElementById('input_mask_dilation');
-        dil = parseInt((dilInp ? dilInp.value : studio.maskDilation) || 2) || 2;
+        dil = parseInt((dilInp ? dilInp.value : studio.maskDilation) || 3) || 3;
 
         const lamaInp = document.getElementById('input_lama_extra');
-        lama = parseInt((lamaInp ? lamaInp.value : studio.lamaExtra) || 1) || 1;
+        const lVal = lamaInp ? parseInt(lamaInp.value) : studio.lamaExtra;
+        lama = Number.isInteger(lVal) ? lVal : 0;
 
         const tempInp = document.getElementById('input_temporal_window');
-        temp = parseInt((tempInp ? tempInp.value : studio.temporalWindow) || 12) || 12;
+        temp = parseInt((tempInp ? tempInp.value : studio.temporalWindow) || 1) || 1;
 
         return [video, lx, by, rx, ty, trim, tStart, tEnd, color, mode, prev, dil, lama, temp];
     } catch (err) {
