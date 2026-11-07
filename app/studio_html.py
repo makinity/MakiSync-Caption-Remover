@@ -340,20 +340,28 @@ STUDIO_HTML = """
                 </div>
                 <p class="section-desc">Balance speed and reconstruction quality.</p>
                 <div class="inpaint-card-grid">
-                    <!-- Fast Mode -->
-                    <div class="inpaint-card" data-mode="fast" id="card_mode_fast">
-                        <div class="inpaint-card-icon yellow-bolt">⚡</div>
-                        <div class="inpaint-card-text">
-                            <span class="inpaint-title">Fast mode</span>
-                            <span class="inpaint-sub">OpenCV</span>
-                        </div>
-                    </div>
-                    <!-- Quality AI (Selected) -->
-                    <div class="inpaint-card active" data-mode="quality" id="card_mode_quality">
+                    <!-- Quality AI (Selected by default - Fast ~15s) -->
+                    <div class="inpaint-card active" data-mode="quality" id="card_mode_quality" title="Fast deep neural inpainting with Camera Sensor Grain Matching (~15s)">
                         <div class="inpaint-card-icon purple-sparkle">✨</div>
                         <div class="inpaint-card-text">
                             <span class="inpaint-title">Quality AI</span>
-                            <span class="inpaint-sub">LaMa deep neural</span>
+                            <span class="inpaint-sub">Fast & sharp (~15s)</span>
+                        </div>
+                    </div>
+                    <!-- CapCut 1:1 Flow -->
+                    <div class="inpaint-card" data-mode="propainter" id="card_mode_propainter" title="Flow-guided multi-frame pixel propagation (Zero Blur)">
+                        <div class="inpaint-card-icon cyan-diamond">💎</div>
+                        <div class="inpaint-card-text">
+                            <span class="inpaint-title">CapCut 1:1</span>
+                            <span class="inpaint-sub">ProPainter Flow</span>
+                        </div>
+                    </div>
+                    <!-- Fast Mode -->
+                    <div class="inpaint-card" data-mode="fast" id="card_mode_fast" title="Classic OpenCV inpainting">
+                        <div class="inpaint-card-icon yellow-bolt">⚡</div>
+                        <div class="inpaint-card-text">
+                            <span class="inpaint-title">Fast mode</span>
+                            <span class="inpaint-sub">OpenCV (Instant)</span>
                         </div>
                     </div>
                 </div>

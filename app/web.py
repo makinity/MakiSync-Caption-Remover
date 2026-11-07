@@ -296,7 +296,16 @@ def process_video(
     work_dir.mkdir(parents=True, exist_ok=True)
     out_video_path = work_dir / f"repaired_{session_id}.mp4"
 
-    backend = "opencv" if process_mode == "fast" else "lama"
+    if process_mode in ("propainter", "capcut"):
+        backend = "propainter"
+        mode_label = "CapCut 1:1 Flow (ProPainter)"
+    elif process_mode == "fast":
+        backend = "opencv"
+        mode_label = "Fast Mode (OpenCV)"
+    else:
+        backend = "lama"
+        mode_label = "Quality AI (LaMa)"
+
     is_preview = bool(preview_only and not clip_trim)
 
     config = AppConfig(
@@ -324,7 +333,6 @@ def process_video(
         ffprobe_bin=FFPROBE_BIN,
     )
 
-    mode_label = "Fast Mode (OpenCV)" if process_mode == "fast" else "Quality AI (LaMa)"
     if clip_trim:
         _update_progress(0.05, desc=f"Starting Trimmed Clip Inpainting ({clip_start:.1f}s - {clip_end:.1f}s) via {mode_label}...")
     elif is_preview:
@@ -420,8 +428,9 @@ def build_ui() -> Tuple[gr.Blocks, gr.Theme, str]:
             )
             mode_radio = gr.Radio(
                 choices=[
-                    ("fast", "fast"),
                     ("quality", "quality"),
+                    ("propainter", "propainter"),
+                    ("fast", "fast"),
                 ],
                 value="quality",
                 elem_id="radio_process_mode",

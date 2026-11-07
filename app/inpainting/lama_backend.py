@@ -20,6 +20,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 from ..config import AppConfig
+from ..utils.grain_matching import match_sensor_grain
 from ..utils.logging_utils import get_logger
 from .base import InpaintingBackend
 
@@ -147,6 +148,7 @@ class LaMaBackend(InpaintingBackend):
             res_np = (res[0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8)
 
         repaired_bgr = cv2.cvtColor(res_np, cv2.COLOR_RGB2BGR)
+        repaired_bgr = match_sensor_grain(frame_crop, repaired_bgr, mask_crop, border_width=12, grain_strength=0.85)
         alpha = cv2.GaussianBlur(mask_crop.astype(np.float32) / 255.0, (5, 5), 1.2)[:, :, np.newaxis]
         blended = (frame_crop.astype(np.float32) * (1.0 - alpha) + repaired_bgr.astype(np.float32) * alpha).astype(np.uint8)
         out = frame_bgr.copy()
@@ -237,6 +239,9 @@ class LaMaBackend(InpaintingBackend):
                 m_crop = masks[idx][y1:y2, x1:x2]
                 if dilate_k is not None:
                     m_crop = cv2.dilate(m_crop, dilate_k, iterations=self.cfg.lama_dilate_extra)
+
+                # Inject matching camera sensor noise to prevent smooth/blur look
+                repaired_bgr = match_sensor_grain(f_crop, repaired_bgr, m_crop, border_width=12, grain_strength=0.85)
 
                 # Seamless sub-pixel alpha feathering: only inpaint where the subtitle mask is!
                 # Keeps 100% of surrounding background pixel-crisp with zero blur smudges!

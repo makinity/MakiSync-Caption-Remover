@@ -1403,9 +1403,9 @@ STUDIO_JS = """
                 const cardQ = document.getElementById('card_mode_quality');
                 if (cardQ) cardQ.click();
 
-                if (dilSlider) { dilSlider.value = 2; dilSlider.dispatchEvent(new Event('input')); }
-                if (lamaSlider) { lamaSlider.value = 1; lamaSlider.dispatchEvent(new Event('input')); }
-                if (tempSlider) { tempSlider.value = 12; tempSlider.dispatchEvent(new Event('input')); }
+                if (dilSlider) { dilSlider.value = 3; dilSlider.dispatchEvent(new Event('input')); }
+                if (lamaSlider) { lamaSlider.value = 0; lamaSlider.dispatchEvent(new Event('input')); }
+                if (tempSlider) { tempSlider.value = 1; tempSlider.dispatchEvent(new Event('input')); }
 
                 window.__snapRoiPreset('bottom');
             });

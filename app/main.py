@@ -55,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--preview-seconds", type=float, default=3.0)
 
     # Backend
-    p.add_argument("--backend", choices=["lama", "opencv", "propainter", "e2fgvi"], default="lama")
+    p.add_argument("--backend", choices=["lama", "opencv", "propainter", "e2fgvi"], default="propainter")
     p.add_argument("--lama-device", default="auto",
                    help="auto / cpu / cuda / mps")
     p.add_argument("--lama-dilate-extra", type=int, default=0)

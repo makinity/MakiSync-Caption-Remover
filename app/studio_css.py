@@ -1451,20 +1451,24 @@ video {
 /* Section 02: Inpainting Cards Grid */
 .inpaint-card-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 6px;
 }
 
 .inpaint-card {
     background: var(--studio-card);
     border: 1px solid var(--studio-border);
     border-radius: 10px;
-    padding: 10px;
+    padding: 8px 6px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
     cursor: pointer;
     transition: all 0.2s ease;
+}
+
+.cyan-diamond {
+    filter: drop-shadow(0 0 6px rgba(6, 182, 212, 0.6));
 }
 
 .inpaint-card:hover {

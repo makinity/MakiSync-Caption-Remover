@@ -26,6 +26,7 @@ env/
 
 # Project intermediate work directory
 work/
+third_party/
 
 # Model weights
 *.pt
